@@ -1,0 +1,45 @@
+########################### KONFIGURATION zum MP_LOGOS Skript ###########################
+#
+# Alle Einstellungen zum Skript werden hier eingetragen. Diese Datei (Picons2VDR.conf) am
+# besten nach ~/etc kopieren. Das Skript findet sie dann automatisch.
+#
+#########################################################################################
+
+### Hinweis zum ausfüllen: Wenn Variablen ($) verwendet werden,
+### dann in doppelten " ansonsten können einfache ' benutzt werden
+
+# 'LOGODIR' ist der Ordner, wo die Symlinks angelegt werden und das Skin (Z. B. SkinflatPlus)
+# die Kanallogos lädt. Verzeichnis ohne abschließendes '/'
+LOGODIR='/usr/local/src/_div/flatpluslogos'  # Logos für VDR-Skin
+
+# Logo konfiguraton. Array mit folgenden Werten:
+#Größe Hintergrund, Größe des Logos, Logo-Typ, Hintergrund
+#LOGO_CONF=(220x132 200x112 dark transparent)  # Vorgabe
+# 220x132 190x102 dark blue
+# 220x132 190x102 dark reflection
+# 220x132 190x102 dark transparent
+# 220x132 220x132 dark transparent
+# 220x132 190x102 dark white
+# 220x132 190x102 light black
+# 220x132 190x102 light transparent
+
+# 'SVGCONVERTER' rsvg (librsvg2-bin) oder inkscape
+SVGCONVERTER='rsvg'
+
+# Kanalliste vom VDR.
+CHANNELSCONF='/etc/vdr/channels.conf'  # VDR's Kanalliste
+
+# Ausgaben des Skripts via logger oder echo, wenn die Variable auskommentiert ist
+LOGGER='logger'                        # Logger oder auskommentieren für 'echo'
+
+# Logdatei. Wenn nicht gewünscht einfach auskommentiern
+LOGFILE="/var/log/${SELF_NAME%.*}.log" # Log-Datei
+
+# Maximale Größe der Logdatei. Bei überschreiten wird diese vom Skriot umbenannt in *.old
+MAXLOGSIZE=$((1024*50))                # Log-Datei: Maximale Größe in Byte
+
+# Festlegen, ob alle Zeichen des Sendernamens in kleinbuchstaben konvertiert werden sollen
+# oder nur A-Z. Bei SkinflatPlus werden Logos nicht angezeigt, wenn Umlaute am Wortahfang
+# klein sind. [sat.1 österreich.png -> Keine Anzeige] - [sat.1 Österreich.png -> OK]
+# 'A-Z' (Nur A-Z umwandeln) oder 'ALL' (Alle Zeichen umwandeln)
+TOLOWER='A-Z'                          # Nur A-Z in kleinbuchstaben
