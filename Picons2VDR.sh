@@ -123,12 +123,6 @@ fi
 f_log "==> $RUNDATE - $SELF_NAME #${VERSION} - Start..."
 f_log "$CONFLOADED Konfiguration: ${CONFIG}"
 
-
-### Zum testen! ###
-CHANNELSCONF="${SELF%/*}/channels.conf"
-LOGODIR='/tmp/logodir'
-
-
 ### Pfade festlegen
 location="${SELF_PATH}/${PICONS_DIR}"     # Pfad vom GIT
 logfile=$(mktemp --suffix=.servicelist.log)
