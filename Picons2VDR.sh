@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210109
+VERSION=210112
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -210,7 +210,6 @@ if [[ -f "$CHANNELSCONF" ]] ; then
      *'=27') channeltype='19' ;;
     esac
 
-    #unique_id=$(sed -e 's/.*/\U&\E/' <<< "${sid}_${tid}_${nid}_${namespace}") ???
     unique_id="${sid}_${tid}_${nid}_${namespace}"  # In Großbuchstaben
     serviceref="1_0_${channeltype}_${unique_id}0000_0_0_0"
     serviceref_id="${unique_id}0000"
@@ -219,11 +218,14 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     read -r -a snpchannelname <<< "${channelnames[nr]}"  # ASCII
     IFS="$OLDIFS"
     vdr_channelname="${channelname[0]%,*}"       # Kanalname ohne Kurzname
-    vdr_channelname="${vdr_channelname,,[A-Z]}"  # In Kleinbuchstaben (Außer Umlaute)
+    if [[ "${TOLOWER:-ALL}" == 'ALL' ]] ; then
+      vdr_channelname="${vdr_channelname,,}"     # Alles in kleinbuchstaben
+    else
+      vdr_channelname="${vdr_channelname,,[A-Z]}"  # In Kleinbuchstaben (Außer Umlaute)
+    fi
     vdr_channelname="${vdr_channelname//|/:}"    # | durch : ersetzen
 
-    #channelname[0]=$(iconv -f utf-8 -t ascii//translit <<< "${channelname[0]%,*}" 2>> "$logfile") #\
-      #| sed -e 's/^[ \t]*//' -e 's/|//g' -e 's/^//g')
+    # sed -e 's/^[ \t]*//' -e 's/|//g' -e 's/^//g')
     snpchannelname[0]="${snpchannelname[0]%,*}"
     snpchannelname[0]="${snpchannelname[0]//[[:space:]]}"
     snpchannelname[0]="${snpchannelname[0]//|}"
@@ -245,7 +247,6 @@ if [[ -f "$CHANNELSCONF" ]] ; then
       [[ -z "$logo_snp" ]] && logo_snp='--------'
       echo -e "${serviceref}\t${vdr_channelname}\t${serviceref_id}=${logo_srp}\t${snpname}=${logo_snp}" >> "$tempfile"
     else
-      #echo -e "${serviceref}\t${channelname[0]}\t${serviceref_id}=${logo_srp}" >> "$tempfile"
       echo -e "${serviceref}\t${vdr_channelname}\t${serviceref_id}=${logo_srp}" >> "$tempfile"
     fi
   done
