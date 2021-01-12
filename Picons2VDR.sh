@@ -50,7 +50,12 @@ f_create-symlinks() {  # Symlinks erzeugen
     IFS='|'
     read -r -a line_data <<< "$line" # ??? tr -d '[=*=]' \
     #serviceref=$(f_trim "${line_data[0]}")
-    servicename=$(f_trim "${line_data[1]//:/|}")  # Kanalname (Doppelpunkt ersetzen)
+    channel=$(f_trim "${line_data[1]//:/|}")  # Kanalname (Doppelpunkt ersetzen)
+    if [[ "${TOLOWER:-ALL}" == 'ALL' ]] ; then
+      servicename="${channel,,}"              # Alles in kleinbuchstaben
+    else
+      servicename="${channel,,[A-Z]}"         # In Kleinbuchstaben (Außer Umlaute)
+    fi
     link_srp=$(f_trim "${line_data[2]}")
     link_snp=$(f_trim "${line_data[3]}")
 
@@ -63,9 +68,9 @@ f_create-symlinks() {  # Symlinks erzeugen
     IFS="$OLDIFS"
 
     if [[ "$logo_srp" == '--------' && "$logo_snp" == '--------' ]] ; then
-      echo -e "$msgWRN Kein Logo für $servicename (${link_srp[*]} | ${link_snp[*]}) gefunden!"
+      echo -e "$msgWRN Kein Logo für $channel (SRP: ${lnk_srp[0]} | SNP: ${lnk_snp[0]}) gefunden!"
       if [[ -n "$LOGFILE" ]] ; then
-        echo "Kein Logo für $servicename (${link_srp} | ${link_snp}) gefunden!"  2>/dev/null >> "$LOGFILE"
+        echo "Kein Logo für $channel (SRP: ${lnk_srp[0]} | SNP: ${lnk_snp[0]}) gefunden!" 2>/dev/null >> "$LOGFILE"
       fi
       ((nologo++)) ; continue
     fi
@@ -74,7 +79,7 @@ f_create-symlinks() {  # Symlinks erzeugen
       mkdir --parents "${LOGODIR}/${ch_path}"
       logos='../logos'
     fi
-    if [[ "$logo_srp" != '--------' ]] ; then
+    if [[ "$logo_srp" != '--------' ]] ; then  #TODO: srp oder snp bevorzugen?
       echo "ln -s -f \"${logos:-logos}/${logo_srp}.png\" \"${servicename}.png\"" >> "${temp}/create-symlinks.sh"
       logocollection+=("$logo_srp")
     fi
@@ -218,11 +223,6 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     read -r -a snpchannelname <<< "${channelnames[nr]}"  # ASCII
     IFS="$OLDIFS"
     vdr_channelname="${channelname[0]%,*}"       # Kanalname ohne Kurzname
-    if [[ "${TOLOWER:-ALL}" == 'ALL' ]] ; then
-      vdr_channelname="${vdr_channelname,,}"     # Alles in kleinbuchstaben
-    else
-      vdr_channelname="${vdr_channelname,,[A-Z]}"  # In Kleinbuchstaben (Außer Umlaute)
-    fi
     vdr_channelname="${vdr_channelname//|/:}"    # | durch : ersetzen
 
     # sed -e 's/^[ \t]*//' -e 's/|//g' -e 's/^//g')
