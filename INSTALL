@@ -15,30 +15,23 @@ Installation vom GIT:
 
 - GIT herunter laden:
   Im Terminal folgende Befehle ausführen:
-  ´´´
   cd /usr/local/src
   git co https://github.com/MegaV0lt/Picons2VDR.git Picons2VDR-git
-  ```
-
+  
 - Skript verlinken und *.conf kopieren
-  ´´´
   cd Picons2VDR-git
   ln -s Picons2VDR.sh /usr/local/sbin/Picons2VDR.sh
   cp Picons2VDR.conf.dist /etc/Picons2VDR.conf
-  ```
-
+  
 - Picons2VDR.conf anpassen
   Die *.conf auf die eigenen Bedürfnisse anpassen.
   Beispiele sind enthalten.
 
 Update vom GIT:
   Im Terminal folgende Befehle ausführen:
-  ´´´
   cd /usr/local/src/Picons2VDR-git
   git pull
-  ```
-
-
+  
 Hinweise:
 
 Man kann dem Skript auch eine andere *.conf übergeben. Beispiel:
