@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210112
+VERSION=210113
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -30,7 +30,7 @@ OLDIFS="$IFS"
 ### Funktionen
 f_log() {  # Gibt die Meldung auf der Konsole und im Syslog aus
   [[ -n "$LOGGER" ]] && { "$LOGGER" --stderr --tag "$SELF_NAME" "$*" ;} || echo "$*"
-  [[ -n "$LOGFILE" ]] && echo "$*" 2 >/dev/null >> "$LOGFILE"  # Log in Datei
+  [[ -n "$LOGFILE" ]] && echo "$*" 2>/dev/null >> "$LOGFILE"  # Log in Datei
 }
 
 f_trim() {
@@ -45,7 +45,7 @@ f_create-symlinks() {  # Symlinks erzeugen
   echo '#!/bin/sh' > "${temp}/create-symlinks.sh"
   chmod 755 "${temp}/create-symlinks.sh"
 
-  mapfile -t servicelist < "$location"/build-output/servicelist-vdr-"$style".txt  # Liste in Array einlesen
+  mapfile -t servicelist < "${location}/build-output/servicelist-vdr-${style}.txt"  # Liste in Array einlesen
   for line in "${servicelist[@]}" ; do
     IFS='|'
     read -r -a line_data <<< "$line" # ??? tr -d '[=*=]' \
@@ -68,12 +68,22 @@ f_create-symlinks() {  # Symlinks erzeugen
     IFS="$OLDIFS"
 
     if [[ "$logo_srp" == '--------' && "$logo_snp" == '--------' ]] ; then
-      echo -e "$msgWRN Kein Logo für $channel (SRP: ${lnk_srp[0]} | SNP: ${lnk_snp[0]}) gefunden!"
+      echo -e "$msgWRN !=> Kein Logo für $channel (SRP: ${lnk_srp[0]} | SNP: ${lnk_snp[0]}) gefunden!"
       if [[ -n "$LOGFILE" ]] ; then
-        echo "Kein Logo für $channel (SRP: ${lnk_srp[0]} | SNP: ${lnk_snp[0]}) gefunden!" 2>/dev/null >> "$LOGFILE"
+        f_log "Kein Logo für $channel (SRP: ${lnk_srp[0]} | SNP: ${lnk_snp[0]}) gefunden!"
       fi
       ((nologo++)) ; continue
     fi
+    if [[ "$logo_srp" != '--------' && "$logo_snp" != '--------' ]] ; then
+      if [[ "$logo_srp" != "$logo_snp" ]] ; then  # Unterschiedliche Logos
+        echo -e "$msgWRN ?=> Unterschiedliche Logos für $channel (SRP: ${lnk_srp[1]} | SNP: ${lnk_snp[1]}) gefunden!"
+        if [[ -n "$LOGFILE" ]] ; then
+          f_log "Unterschiedliche Logos für $channel (SRP: ${lnk_srp[1]} | SNP: ${lnk_snp[1]}) gefunden!"
+        fi
+        ((difflogo++))
+      fi
+    fi
+
     if [[ "$servicename" =~ / ]] ; then  # Kanal mit / im Namen
       ch_path="${servicename%/*}"        # Der Teil vor dem lezten /
       mkdir --parents "${LOGODIR}/${ch_path}"
@@ -128,17 +138,17 @@ fi
 f_log "==> $RUNDATE - $SELF_NAME #${VERSION} - Start..."
 f_log "$CONFLOADED Konfiguration: ${CONFIG}"
 
-### Pfade festlegen
-location="${SELF_PATH}/${PICONS_DIR}"     # Pfad vom GIT
+# Pfade festlegen
+location="${SELF_PATH}/${PICONS_DIR}"  # Pfad vom GIT
 logfile=$(mktemp --suffix=.servicelist.log)
 temp=$(mktemp -d --suffix=.picons)
 echo -e "$msgINF Log-Datei: $logfile"
 
-### Benötigte Programme suchen
+# Benötigte Programme suchen
 commands=(sed grep column sort find rm iconv printf)
 commands+=(bc mkdir mv ln readlink)
 for cmd in "${commands[@]}" ; do
-  if ! command -v "$cmd" &> /dev/null ; then
+  if ! command -v "$cmd" &>/dev/null ; then
     missingcommands+=("$cmd")
   fi
 done
@@ -147,14 +157,14 @@ if [[ -n "${missingcommands[*]}" ]] ; then
   exit 1
 fi
 
-### Pfad mit Leerzeichen?
+# Pfad mit Leerzeichen?
 re='[[:space:]]+'
 if [[ "$location" =~ $re ]]; then
   echo -e "$msgERR Pfad enthält Leerzeichen. Bitte Pfad ohne Leerzeichen verwenden!$nc"
   exit 1
 fi
 
-### picons.git laden oder aktualisieren
+# picons.git laden oder aktualisieren
 cd "$SELF_PATH" || exit 1
 if [[ ! -d "${PICONS_DIR}/.git" ]] ; then
   echo -e "$msgWRN $PICONS_DIR nicht gefunden!"
@@ -170,14 +180,14 @@ else
   cd "$SELF_PATH" || exit 1
 fi
 
-### Stil gültig?
+# Stil gültig?
 style='snp'
 if [[ "$style" != 'srp' && "$style" != 'snp' ]] ; then
   echo -e "$msgERR Unbekannter Stil!$nc"
   exit 1
 fi
 
-### .index einlesen
+# .index einlesen
 #mapfile -t index < "${location}/build-source/${style}.index"
 index=$(<"${location}/build-source/${style}.index")
 
@@ -187,11 +197,11 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   tempfile=$(mktemp --suffix=.servicelist)
   iconv -f utf-8 -t ascii//translit -c < "$CHANNELSCONF" -o "${temp}/channels.asc" 2>> "$logfile"
   mapfile -t channelnames < "${temp}/channels.asc"  # Kanalliste in ASCII
-  channelnames=("${channelnames[@]%%:*}")  # Nur den Kanalnamen (Mit Provider und Kurzname)
-  mapfile -t channelsconf < "$CHANNELSCONF"  # Kanalliste in Array einlesen
+  channelnames=("${channelnames[@]%%:*}")           # Nur den Kanalnamen (Mit Provider und Kurzname)
+  mapfile -t channelsconf < "$CHANNELSCONF"         # Kanalliste in Array einlesen
 
   for nr in "${!channelsconf[@]}" ; do
-    [[ "${channelsconf[nr]:0:1}" == : ]] && continue    # Kanalgruppe
+    [[ "${channelsconf[nr]:0:1}" == : ]] && continue      # Kanalgruppe
     [[ "${channelsconf[nr]}" =~ OBSOLETE ]] && continue   # Als 'OBSOLETE' markierter Kanal
     ((cnt++)) ; echo -ne "$msgINF VDR: Konvertiere Kanal #${cnt}"\\r
     IFS=':'
@@ -215,15 +225,15 @@ if [[ -f "$CHANNELSCONF" ]] ; then
      *'=27') channeltype='19' ;;
     esac
 
-    unique_id="${sid}_${tid}_${nid}_${namespace}"  # In Großbuchstaben
+    unique_id="${sid}_${tid}_${nid}_${namespace}"
     serviceref="1_0_${channeltype}_${unique_id}0000_0_0_0"
     serviceref_id="${unique_id}0000"
     IFS=';'
     read -r -a channelname <<< "${vdrchannel[0]}"
     read -r -a snpchannelname <<< "${channelnames[nr]}"  # ASCII
     IFS="$OLDIFS"
-    vdr_channelname="${channelname[0]%,*}"       # Kanalname ohne Kurzname
-    vdr_channelname="${vdr_channelname//|/:}"    # | durch : ersetzen
+    vdr_channelname="${channelname[0]%,*}"     # Kanalname ohne Kurzname
+    vdr_channelname="${vdr_channelname//|/:}"  # | durch : ersetzen
 
     # sed -e 's/^[ \t]*//' -e 's/|//g' -e 's/^//g')
     snpchannelname[0]="${snpchannelname[0]%,*}"
@@ -253,19 +263,18 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   #sort -t $'\t' -k 2,2 "$tempfile" | sed -e 's/\t/^|/g' | column -t -s $'^' | sed -e 's/|/  |  /g' > "$file"
   sort -t $'\t' -k 2,2 "$tempfile" | sed -e 's/\t/  |  /g' > "$file"
   rm "$tempfile"
-  echo -e "\n$msgINF VDR: Exportiert nach $file"
+  echo -e "\n$msgINF VDR: Serviceliste exportiert nach $file"
 else
   echo -e "$msgERR VDR: $CHANNELSCONF nicht gefunden!$nc"
   exit 1
 fi
 
-### Build icons ###
+### Icons mit Hintergrund erstellen ###
 
-### Setup locations
 logfile=$(mktemp --suffix=.picons.log)
 echo -e "$msgINF Log-Datei: $logfile"
 
-if command -v pngquant &> /dev/null ; then
+if command -v pngquant &>/dev/null ; then
   pngquant='pngquant'
   echo -e "$msgINF Bildkomprimierung aktiviert!"
 else
@@ -273,18 +282,18 @@ else
   echo -e "$msgWRN Bildkomprimierung deaktiviert! \"pngquant\" installieren!"
 fi
 
-if command -v convert &> /dev/null ; then
+if command -v convert &>/dev/null ; then
   echo -e "$msgINF ImageMagick gefunden!"
 else
-  echo -e "$msgERR ImageMagick nicht gefunden! \"imagemagick\" installieren!"
+  echo -e "$msgERR ImageMagick nicht gefunden! \"ImageMagick\" installieren!"
   exit 1
 fi
 
 : SVGCONVERTER="${SVGCONVERTER:=rsvg}"  # Vorgabe ist rsvg
-if command -v inkscape &> /dev/null && [[ "$SVGCONVERTER" == 'inkscape' ]] ; then
+if command -v inkscape &>/dev/null && [[ "$SVGCONVERTER" == 'inkscape' ]] ; then
   svgconverter='inkscape -w 850 --without-gui --export-area-drawing --export-png='
-  echo -e "$msgINF Verwende inkscape als SVG-Konverter!"
-elif command -v rsvg-convert &> /dev/null && [[ "$SVGCONVERTER" = 'rsvg' ]] ; then
+  echo -e "$msgINF Verwende Inkscape als SVG-Konverter!"
+elif command -v rsvg-convert &>/dev/null && [[ "$SVGCONVERTER" = 'rsvg' ]] ; then
   svgconverter=('rsvg-convert' -w 1000 --keep-aspect-ratio --output)
   echo -e "$msgINF Verwende rsvg als SVG-Konverter!"
 else
@@ -292,7 +301,7 @@ else
   exit 1
 fi
 
-### Check if previously chosen style exists
+# Prüfen ob Serviceliste existiert
 for file in "$location"/build-output/servicelist-*-"$style".txt ; do
   if [[ ! -f "$file" ]] ; then
     echo -e "$msgERR Keine $style Serviceliste gefunden!$nc"
@@ -300,46 +309,30 @@ for file in "$location"/build-output/servicelist-*-"$style".txt ; do
   fi
 done
 
-### Determine version number
-if [[ -d "${location}/.git" ]] && command -v git &> /dev/null ; then
-  cd "$location" || exit 1
-  hash=$(git rev-parse --short HEAD)
-  version=$(date --utc --date=@$(git show -s --format=%ct "$hash") +'%Y-%m-%d--%H-%M-%S')
-  #timestamp=$(date --utc --date=@$(git show -s --format=%ct "$hash") +'%Y%m%d%H%M.%S')
-else
-  epoch='date --utc +%s'
-  version=$(date --utc --date=@$("$epoch") +'%Y-%m-%d--%H-%M-%S')
-  #timestamp=$(date --utc --date=@$("$epoch") +'%Y%m%d%H%M.%S')
-fi
-
-echo -e "$msgINF Version: $version"
-
-### Einfache Prüfung der Quellen
+# Einfache Prüfung der Quellen
 if [[ $- == *i* ]] ; then
-  echo -e "$msgINF Checking index…"
+  echo -e "$msgINF Überprüfe index…"
   "$location/resources/tools/check-index.sh" "$location/build-source srp"
   "$location/resources/tools/check-index.sh" "$location/build-source snp"
 
-  echo -e "$msgINF Checking logos…"
+  echo -e "$msgINF Überprüfe logos…"
   "$location/resources/tools/check-logos.sh" "$location/build-source/logos"
 fi
 
-### create-symlinks.sh erstellen
+# Datei 'create-symlinks.sh' erstellen
 echo -e "$msgINF Erzeuge Datei \"create-symlinks.sh\"…"
 f_create-symlinks
 
-### Konvertierung der Logos
+# Konvertierung der Logos
 logocount="${#logocollection[@]}"
 mkdir --parents "${temp}/cache" || { echo "Fehler beim erzeugen von ${temp}/cache" ; exit 1 ;}
-[[ ! -d "$LOGODIR" ]] && { mkdir --parents "$LOGODIR" || exit 1 ;}
+[[ ! -d "${LOGODIR}/logos" ]] && { mkdir --parents "${LOGODIR}/logos" || exit 1 ;}
 
 resolution="${LOGO_CONF[0]:=220x132}"
 resize="${LOGO_CONF[1]:=200x112}"
 type="${LOGO_CONF[2]:=dark}"
 background="${LOGO_CONF[3]:=transparent}"
 packagenamenoversion="${style}.${resolution}-${resize}.${type}.on.${background}"
-
-mkdir --parents "${LOGODIR}/logos"
 
 echo -e "$msgINF Erzeuge Logos: ${packagenamenoversion}…"
 currentlogo=0
@@ -356,14 +349,14 @@ for logoname in "${logocollection[@]}" ; do
   echo "${logoname}.${logotype}" >> "$logfile"
 
   if [[ -f "${location}/build-source/logos/${logoname}.${logotype}.svg" ]] ; then
-    [[ "${LOGODIR}/logos/${logoname}.png" -nt "${location}/build-source/logos/${logoname}.${logotype}.svg" ]] && continue  # Only convert newer ones
+    [[ "${LOGODIR}/logos/${logoname}.png" -nt "${location}/build-source/logos/${logoname}.${logotype}.svg" ]] && continue  # Nur erstellen wenn neuer
     logo="${temp}/cache/${logoname}.${logotype}.png"
     if [[ ! -f "$logo" ]] ; then
-      "${svgconverter[@]}" "${logo}" "${location}/build-source/logos/${logoname}.${logotype}.svg" 2>> "$logfile" >> "$logfile"
+      "${svgconverter[@]}" "${logo}" "${location}/build-source/logos/${logoname}.${logotype}.svg" &>> "$logfile"
     fi
   else
-    [[ "${LOGODIR}/logos/${logoname}.png" -nt "${location}/build-source/logos/${logoname}.${logotype}.png" ]] && continue  # Only convert newer ones
     logo="${location}/build-source/logos/${logoname}.${logotype}.png"
+    [[ "${LOGODIR}/logos/${logoname}.png" -nt "$logo" ]] && continue  # Nur erstellen wenn neuer
   fi
 
   # Erstelle Logo mit Hintergrund
@@ -378,13 +371,15 @@ cd "$LOGODIR" || exit 1
 echo -e "\n${msgINF} Verlinke Logos…"
 "${temp}/create-symlinks.sh"
 
-find "$LOGODIR" -xtype l -delete >> "${LOGFILE:-/dev/null}"  # Alte (defekte) Symlinks löschen
+find "$LOGODIR" -xtype l -delete &>> "${LOGFILE:-/dev/null}"  # Alte (defekte) Symlinks löschen
 
 if [[ -d "$temp" ]] ; then rm -rf "$temp" ; fi
 
-echo -e "$msgINF Erzeugen von ${style} Logos für VDR beendet!"
+echo -e "$msgINF Erstellen von Logos (${style}) für VDR beendet!"
 
-[[ "$nologo" -gt 0 ]] && f_log "==> Für ${nologo} Kanäle wurde kein Logo gefunden"
+# Statistik anzeigen
+[[ "$nologo" -gt 0 ]] && f_log "==> Für $nologo Kanäle wurde kein Logo gefunden"
+[[ "$difflogo" -gt 0 ]] && f_log "==> Für $difflogo Kanäle wurden unterschiedliche Logos gefunden"
 f_log "==> ${N_LOGO:-0} neue oder aktualisierte Logos (Links zu Logos: ${logocount})"
 SCRIPT_TIMING[2]=$SECONDS  # Zeit nach der Statistik
 SCRIPT_TIMING[10]=$((SCRIPT_TIMING[2] - SCRIPT_TIMING[0]))  # Gesamt
