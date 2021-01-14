@@ -144,6 +144,11 @@ logfile=$(mktemp --suffix=.servicelist.log)
 temp=$(mktemp -d --suffix=.picons)
 echo -e "$msgINF Log-Datei: $logfile"
 
+# Benötigte Variablen prüfen
+for var in CHANNELSCONF LOGODIR ; do
+  [[ -z "${!var}" ]] && { echo -e "$msgERR Variable $var ist nicht gesetzt!${nc}" ; exit 1 ;}
+done
+
 # Benötigte Programme suchen
 commands=(sed grep column sort find rm iconv printf)
 commands+=(bc mkdir mv ln readlink)

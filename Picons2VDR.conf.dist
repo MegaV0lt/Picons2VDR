@@ -1,4 +1,4 @@
-########################### KONFIGURATION zum MP_LOGOS Skript ###########################
+######################### KONFIGURATION zum Picons2VDR Skript ###########################
 #
 # Alle Einstellungen zum Skript werden hier eingetragen. Diese Datei (Picons2VDR.conf) am
 # besten nach ~/etc kopieren. Das Skript findet sie dann automatisch.
@@ -10,10 +10,10 @@
 
 # 'LOGODIR' ist der Ordner, wo die Symlinks angelegt werden und das Skin (Z. B. SkinflatPlus)
 # die Kanallogos lädt. Verzeichnis ohne abschließendes '/'
-LOGODIR='/usr/local/src/_div/flatpluslogos'  # Logos für VDR-Skin
+LOGODIR='/etc/vdr/flatpluslogos'  # Logos für VDR-Skin
 
 # Logo konfiguraton. Array mit folgenden Werten:
-#Größe Hintergrund, Größe des Logos, Logo-Typ, Hintergrund
+# Größe Hintergrund, Größe des Logos, Logo-Typ, Hintergrund
 #LOGO_CONF=(220x132 200x112 dark transparent)  # Vorgabe
 # 220x132 190x102 dark blue
 # 220x132 190x102 dark reflection
@@ -23,7 +23,8 @@ LOGODIR='/usr/local/src/_div/flatpluslogos'  # Logos für VDR-Skin
 # 220x132 190x102 light black
 # 220x132 190x102 light transparent
 
-# 'SVGCONVERTER' rsvg (librsvg2-bin) oder inkscape
+# SVG-Konverter zum Wandeln der '*.svg' nach '*.png'
+# rsvg (librsvg2-bin) oder inkscape
 SVGCONVERTER='rsvg'
 
 # Kanalliste vom VDR.
