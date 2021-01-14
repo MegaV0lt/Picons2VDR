@@ -145,7 +145,7 @@ echo -e "$msgINF Log-Datei: $logfile"
 
 # Benötigte Variablen prüfen
 for var in CHANNELSCONF LOGODIR ; do
-  [[ -z "${!var}" ]] && { echo -e "$msgERR Variable $var ist nicht gesetzt!${nc}" ; exit 1 ;}
+  [[ -z "${!var}" ]] && { echo -e "$msgERR Variable $var ist nicht gesetzt!${nc}" >&2 ; exit 1 ;}
 done
 
 # Benötigte Programme suchen
@@ -156,14 +156,14 @@ for cmd in "${commands[@]}" ; do
   fi
 done
 if [[ -n "${missingcommands[*]}" ]] ; then
-  echo -e "$msgERR Fehlende Datei(en): ${missingcommands[*]}${nc}"
+  echo -e "$msgERR Fehlende Datei(en): ${missingcommands[*]}${nc}" >&2
   exit 1
 fi
 
 # Pfad mit Leerzeichen?
 re='[[:space:]]+'
 if [[ "$location" =~ $re ]]; then
-  echo -e "$msgERR Pfad enthält Leerzeichen. Bitte Pfad ohne Leerzeichen verwenden!$nc"
+  echo -e "$msgERR Pfad enthält Leerzeichen. Bitte Pfad ohne Leerzeichen verwenden!$nc" >&2
   exit 1
 fi
 
@@ -175,7 +175,7 @@ if [[ ! -d "${PICONS_DIR}/.git" ]] ; then
   echo -e "${msgINF}\n${msgINF} Zum abbrechen Strg-C drücken. Starte in 5 Sekunden…"
   sleep 5
   git clone "$PICONS_GIT" "$PICONS_DIR" || \
-    { echo -e "$msgERR Klonen hat nicht funktioniert!" ; exit 1 ;}
+    { echo -e "$msgERR Klonen hat nicht funktioniert!" >&2 ; exit 1 ;}
 else
   echo -e "$msgINF Aktualisiere Picons in $PICONS_DIR"
   cd "$PICONS_DIR" || exit 1
@@ -186,7 +186,7 @@ fi
 # Stil gültig?
 style='snp'
 if [[ "$style" != 'srp' && "$style" != 'snp' ]] ; then
-  echo -e "$msgERR Unbekannter Stil!$nc"
+  echo -e "$msgERR Unbekannter Stil!$nc" >&2
   exit 1
 fi
 
@@ -274,7 +274,7 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   rm "$tempfile"
   echo -e "\n$msgINF VDR: Serviceliste exportiert nach $file"
 else
-  echo -e "$msgERR VDR: $CHANNELSCONF nicht gefunden!$nc"
+  echo -e "$msgERR VDR: $CHANNELSCONF nicht gefunden!$nc" >&2
   exit 1
 fi
 
@@ -294,7 +294,7 @@ fi
 if command -v convert &>/dev/null ; then
   echo -e "$msgINF ImageMagick gefunden!"
 else
-  echo -e "$msgERR ImageMagick nicht gefunden! \"ImageMagick\" installieren!"
+  echo -e "$msgERR ImageMagick nicht gefunden! \"ImageMagick\" installieren!" >&2
   exit 1
 fi
 
@@ -306,14 +306,14 @@ elif command -v rsvg-convert &>/dev/null && [[ "$SVGCONVERTER" = 'rsvg' ]] ; the
   svgconverter=('rsvg-convert' -w 1000 --keep-aspect-ratio --output)
   echo -e "$msgINF Verwende rsvg als SVG-Konverter!"
 else
-  echo -e "$msgERR SVG-Konverter: ${SVGCONVERTER} nicht gefunden!$nc"
+  echo -e "$msgERR SVG-Konverter: ${SVGCONVERTER} nicht gefunden!$nc" >&2
   exit 1
 fi
 
 # Prüfen ob Serviceliste existiert
 for file in "$location"/build-output/servicelist-*-"$style".txt ; do
   if [[ ! -f "$file" ]] ; then
-    echo -e "$msgERR Keine $style Serviceliste gefunden!$nc"
+    echo -e "$msgERR Keine $style Serviceliste gefunden!$nc" >&2
     exit 1
   fi
 done
@@ -389,7 +389,7 @@ echo -e "$msgINF Erstellen von Logos (${style}) für VDR beendet!"
 # Statistik anzeigen
 [[ "$nologo" -gt 0 ]] && f_log "==> Für $nologo Kanäle wurde kein Logo gefunden"
 [[ "$difflogo" -gt 0 ]] && f_log "==> Für $difflogo Kanäle wurden unterschiedliche Logos gefunden"
-[[ "$obs" -gt 0 ]] && f_log "$obs als 'OBSOLETE' markierte Kanäle wurden übersprungen"
+[[ "$obs" -gt 0 ]] && f_log "==> $obs als 'OBSOLETE' markierte Kanäle wurden übersprungen"
 f_log "==> ${N_LOGO:-0} neue oder aktualisierte Logos (Links zu Logos: ${logocount})"
 SCRIPT_TIMING[2]=$SECONDS  # Zeit nach der Statistik
 SCRIPT_TIMING[10]=$((SCRIPT_TIMING[2] - SCRIPT_TIMING[0]))  # Gesamt
