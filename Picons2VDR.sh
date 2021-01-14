@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Skript zum erzeugen und verlinken der PICON-Kanallogos (Enigma2)
 
@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210113
+VERSION=210114
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -33,11 +33,10 @@ f_log() {  # Gibt die Meldung auf der Konsole und im Syslog aus
   [[ -n "$LOGFILE" ]] && echo "$*" 2>/dev/null >> "$LOGFILE"  # Log in Datei
 }
 
-f_trim() {
-  local var="$*"
-  var="${var#"${var%%[![:space:]]*}"}"  # Leerzeichen am Anang entfernen
-  var="${var%"${var##*[![:space:]]}"}"  # Leerzeichen am Ende entfernen
-  printf '%s' "$var"
+f_trim() {  # Leerzeichen am Anfang und am Ende entfernen
+  : "${1#"${1%%[![:space:]]*}"}"
+  : "${_%"${_##*[![:space:]]}"}"
+  printf '%s\n' "$_"
 }
 
 f_create-symlinks() {  # Symlinks erzeugen
@@ -150,8 +149,7 @@ for var in CHANNELSCONF LOGODIR ; do
 done
 
 # Benötigte Programme suchen
-commands=(sed grep column sort find rm iconv printf)
-commands+=(bc mkdir mv ln readlink)
+commands=(bc column find iconv ln mkdir mv printf readlink rm sed sort)
 for cmd in "${commands[@]}" ; do
   if ! command -v "$cmd" &>/dev/null ; then
     missingcommands+=("$cmd")
@@ -194,10 +192,12 @@ fi
 
 # .index einlesen
 #mapfile -t index < "${location}/build-source/${style}.index"
+printf -v index '%b\n' ''  # Damit auch das erste Element gefunden wird (=~)
 index=$(<"${location}/build-source/${style}.index")
 
 ### VDR Serviceliste erzeugen
 if [[ -f "$CHANNELSCONF" ]] ; then
+  LC_ALL='C'  # Schnelleres suchen
   file="${location}/build-output/servicelist-vdr-${style}.txt"
   tempfile=$(mktemp --suffix=.servicelist)
   iconv -f utf-8 -t ascii//translit -c < "$CHANNELSCONF" -o "${temp}/channels.asc" 2>> "$logfile"
@@ -206,8 +206,8 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   mapfile -t channelsconf < "$CHANNELSCONF"         # Kanalliste in Array einlesen
 
   for nr in "${!channelsconf[@]}" ; do
-    [[ "${channelsconf[nr]:0:1}" == : ]] && continue      # Kanalgruppe
-    [[ "${channelsconf[nr]}" =~ OBSOLETE ]] && continue   # Als 'OBSOLETE' markierter Kanal
+    [[ "${channelsconf[nr]:0:1}" == : ]] && { ((grp++)) ; continue ;}  # Kanalgruppe
+    [[ "${channelsconf[nr]}" =~ OBSOLETE ]] && { ((obs++)) ; continue ;}  # Als 'OBSOLETE' markierter Kanal
     ((cnt++)) ; echo -ne "$msgINF VDR: Konvertiere Kanal #${cnt}"\\r
     IFS=':'
     read -r -a vdrchannel <<< "${channelsconf[nr]}"
@@ -217,9 +217,9 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     printf -v nid '%X' "${vdrchannel[10]}"
 
     case ${vdrchannel[3]} in
-      *'W') namespace=$(bc -l <<< "scale=0 ; 3600 - ${vdrchannel[3]//[^0-9.]}*10")
+      *'W') namespace=$(bc -l <<< "scale=0 ; 3600 - ${vdrchannel[3]//[^0-9.]} * 10")
             printf -v namespace '%X' "${namespace%.*}" ;;
-      *'E') namespace=$(bc -l <<< "scale=0 ; ${vdrchannel[3]//[^0-9.]}*10")
+      *'E') namespace=$(bc -l <<< "scale=0 ; ${vdrchannel[3]//[^0-9.]} * 10")
             printf -v namespace '%X' "${namespace%.*}" ;;
        'T') namespace='EEEE' ;;
        'C') namespace='FFFF' ;;
@@ -245,21 +245,25 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     snpchannelname[0]="${snpchannelname[0]//[[:space:]]}"
     snpchannelname[0]="${snpchannelname[0]//|}"
 
-    logo_srp=$(grep -i -m 1 "^$unique_id" <<< "$index")  # | sed -n -e 's/.*=//p')
-    logo_srp="${logo_srp#*=}"
-    [[ -z "$logo_srp" ]] && logo_srp='--------'
+    #logo_srp=$(grep -i -m 1 "^$unique_id" <<< "$index")  # | sed -n -e 's/.*=//p')
+    #logo_srp="${logo_srp#*=}"
+    re="[[:space:]]${unique_id}([^[:space:]]*)"
+    [[ "$index" =~ $re ]] && { logo_srp="${BASH_REMATCH[0]#*=}" ;} || logo_srp='--------'
+    #[[ -z "$logo_srp" ]] && logo_srp='--------'
 
     if [[ "$style" == 'snp' ]] ; then
       #snpname=$(sed -e 's/&/and/g' -e 's/*/star/g' -e 's/+/plus/g' -e 's/\(.*\)/\L\1/g' -e 's/[^a-z0-9]//g' <<< "${snpchannelname[0]}")
       snpname="${snpchannelname[0]//\&/and}" ; snpname="${snpname//'*'/star}" ; snpname="${snpname//+/plus}"
       snpname="${snpname,,}" ; snpname="${snpname//[^a-z0-9]}"
       if [[ -n "$snpname" ]] ; then
-        logo_snp=$(grep -i -m 1 "^$snpname=" <<< "$index")  # | sed -n -e 's/.*=//p')
-        logo_snp="${logo_snp#*=}"
+        #logo_snp=$(grep -i -m 1 "^$snpname=" <<< "$index")  # | sed -n -e 's/.*=//p')
+        #logo_snp="${logo_snp#*=}"
+        re="[[:space:]]${snpname}=([^[:space:]]*)"
+        [[ "$index" =~ $re ]] && { logo_snp="${BASH_REMATCH[1]}" ;} || logo_snp='--------'
       else
         snpname='--------'
       fi
-      [[ -z "$logo_snp" ]] && logo_snp='--------'
+      #[[ -z "$logo_snp" ]] && logo_snp='--------'
       echo -e "${serviceref}\t${vdr_channelname}\t${serviceref_id}=${logo_srp}\t${snpname}=${logo_snp}" >> "$tempfile"
     else
       echo -e "${serviceref}\t${vdr_channelname}\t${serviceref_id}=${logo_srp}" >> "$tempfile"
@@ -378,13 +382,14 @@ echo -e "\n${msgINF} Verlinke Logos…"
 
 find "$LOGODIR" -xtype l -delete &>> "${LOGFILE:-/dev/null}"  # Alte (defekte) Symlinks löschen
 
-if [[ -d "$temp" ]] ; then rm -rf "$temp" ; fi
+if [[ -d "$temp" ]] ; then rm --recursive --force "$temp" ; fi
 
 echo -e "$msgINF Erstellen von Logos (${style}) für VDR beendet!"
 
 # Statistik anzeigen
 [[ "$nologo" -gt 0 ]] && f_log "==> Für $nologo Kanäle wurde kein Logo gefunden"
 [[ "$difflogo" -gt 0 ]] && f_log "==> Für $difflogo Kanäle wurden unterschiedliche Logos gefunden"
+[[ "$obs" -gt 0 ]] && f_log "$obs als 'OBSOLETE' markierte Kanäle wurden übersprungen"
 f_log "==> ${N_LOGO:-0} neue oder aktualisierte Logos (Links zu Logos: ${logocount})"
 SCRIPT_TIMING[2]=$SECONDS  # Zeit nach der Statistik
 SCRIPT_TIMING[10]=$((SCRIPT_TIMING[2] - SCRIPT_TIMING[0]))  # Gesamt
