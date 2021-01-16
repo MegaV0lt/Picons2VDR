@@ -193,7 +193,7 @@ fi
 # .index einlesen
 #mapfile -t index < "${location}/build-source/${style}.index"
 printf -v index '%b\n' ''  # Damit auch das erste Element gefunden wird (=~)
-index=$(<"${location}/build-source/${style}.index")
+index+=$(<"${location}/build-source/${style}.index")
 
 ### VDR Serviceliste erzeugen
 if [[ -f "$CHANNELSCONF" ]] ; then
