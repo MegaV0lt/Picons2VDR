@@ -174,7 +174,7 @@ if [[ ! -d "${PICONS_DIR}/.git" ]] ; then
   echo -e "$msgINF Klone $PICONS_GIT nach $PICONS_DIR"
   echo -e "${msgINF}\n${msgINF} Zum abbrechen Strg-C drücken. Starte in 5 Sekunden…"
   sleep 5
-  git clone "$PICONS_GIT" "$PICONS_DIR" || \
+  git clone --depth 1 "$PICONS_GIT" "$PICONS_DIR" || \
     { echo -e "$msgERR Klonen hat nicht funktioniert!" >&2 ; exit 1 ;}
 else
   echo -e "$msgINF Aktualisiere Picons in $PICONS_DIR"
