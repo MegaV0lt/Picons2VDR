@@ -3,8 +3,6 @@
 # Skript zum erzeugen und verlinken der PICON-Kanallogos (Enigma2)
 
 # Das benötigte GIT wird vom Skript lokal auf die Festplatte geladen
-# Ziel ist in der *.conf einstellbar
-
 # Die Dateinamen passen nicht zum VDR-Schema. Darum verwendet das Skript
 # aus den im GIT enthaltenen index-Dateien, um die Logos dann passend zu verlinken.
 
@@ -75,14 +73,18 @@ f_create-symlinks() {  # Symlinks erzeugen
     fi
     if [[ "$logo_srp" != '--------' && "$logo_snp" != '--------' ]] ; then
       if [[ "$logo_srp" != "$logo_snp" ]] ; then  # Unterschiedliche Logos
-        echo -e "$msgWRN ?=> Unterschiedliche Logos für $channel (SRP: ${lnk_srp[1]} | SNP: ${lnk_snp[1]}) gefunden!"
+        if [[ "${PREFERED_LOGO:=snp}" == 'srp' ]] ; then  # Bevorzugtes Logo verwenden
+          logo_snp='--------'
+        else
+          logo_srp='--------'
+        fi
+        echo -e "$msgWRN ?=> Unterschiedliche Logos für $channel (SRP: $logo_srp | SNP: ${logo_snp}) gefunden!"
         if [[ -n "$LOGFILE" ]] ; then
-          f_log "Unterschiedliche Logos für $channel (SRP: ${lnk_srp[1]} | SNP: ${lnk_snp[1]}) gefunden!"
+          f_log "Unterschiedliche Logos für $channel (SRP: $logo_srp | SNP: ${logo_snp}) gefunden!"
         fi
         ((difflogo++))
       fi
     fi
-
     if [[ "$servicename" =~ / ]] ; then  # Kanal mit / im Namen
       ch_path="${servicename%/*}"        # Der Teil vor dem lezten /
       mkdir --parents "${LOGODIR}/${ch_path}"
@@ -190,7 +192,7 @@ index+=$(<"${location}/build-source/${style}.index")
 
 ### VDR Serviceliste erzeugen
 if [[ -f "$CHANNELSCONF" ]] ; then
-  LC_ALL='C'  # Schnelleres suchen
+  LC_ALL='C'  # Schnelleres suchen (=~)
   file="${location}/build-output/servicelist-vdr-${style}.txt"
   tempfile=$(mktemp --suffix=.servicelist)
   iconv -f utf-8 -t ascii//translit -c < "$CHANNELSCONF" -o "${temp}/channels.asc" 2>> "$logfile"
@@ -382,7 +384,7 @@ echo -e "$msgINF Erstellen von Logos (${style}) beendet!"
 
 # Statistik anzeigen
 [[ "$nologo" -gt 0 ]] && f_log "==> Für $nologo Kanäle wurde kein Logo gefunden"
-[[ "$difflogo" -gt 0 ]] && f_log "==> Für $difflogo Kanäle wurden unterschiedliche Logos gefunden"
+[[ "$difflogo" -gt 0 ]] && f_log "==> Für $difflogo Kanäle wurden unterschiedliche Logos gefunden (Vorgabe: ${PREFERED_LOGO})"
 [[ "$obs" -gt 0 ]] && f_log "==> $obs als 'OBSOLETE' markierte Kanäle wurden übersprungen"
 f_log "==> $((svg + png)) Logos: $svg im SVG-Format und $png im PNG-Format"
 f_log "==> ${N_LOGO:-0} neue oder aktualisierte Logos (Links zu Logos: ${logocount})"
