@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210114
+VERSION=210118
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -160,13 +160,6 @@ if [[ -n "${missingcommands[*]}" ]] ; then
   exit 1
 fi
 
-# Pfad mit Leerzeichen?
-re='[[:space:]]+'
-if [[ "$location" =~ $re ]]; then
-  echo -e "$msgERR Pfad enthält Leerzeichen. Bitte Pfad ohne Leerzeichen verwenden!$nc" >&2
-  exit 1
-fi
-
 # picons.git laden oder aktualisieren
 cd "$SELF_PATH" || exit 1
 if [[ ! -d "${PICONS_DIR}/.git" ]] ; then
@@ -208,7 +201,7 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   for nr in "${!channelsconf[@]}" ; do
     [[ "${channelsconf[nr]:0:1}" == : ]] && { ((grp++)) ; continue ;}  # Kanalgruppe
     [[ "${channelsconf[nr]}" =~ OBSOLETE ]] && { ((obs++)) ; continue ;}  # Als 'OBSOLETE' markierter Kanal
-    ((cnt++)) ; echo -ne "$msgINF VDR: Konvertiere Kanal #${cnt}"\\r
+    ((cnt++)) ; echo -ne "$msgINF Konvertiere Kanal #${cnt}"\\r
     IFS=':'
     read -r -a vdrchannel <<< "${channelsconf[nr]}"
 
@@ -272,9 +265,9 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   #sort -t $'\t' -k 2,2 "$tempfile" | sed -e 's/\t/^|/g' | column -t -s $'^' | sed -e 's/|/  |  /g' > "$file"
   sort -t $'\t' -k 2,2 "$tempfile" | sed -e 's/\t/  |  /g' > "$file"
   rm "$tempfile"
-  echo -e "\n$msgINF VDR: Serviceliste exportiert nach $file"
+  echo -e "\n$msgINF Serviceliste exportiert nach $file"
 else
-  echo -e "$msgERR VDR: $CHANNELSCONF nicht gefunden!$nc" >&2
+  echo -e "$msgERR $CHANNELSCONF nicht gefunden!${nc}" >&2
   exit 1
 fi
 
@@ -289,6 +282,7 @@ if command -v pngquant &>/dev/null ; then
 else
   pngquant='cat'
   echo -e "$msgWRN Bildkomprimierung deaktiviert! \"pngquant\" installieren!"
+  f_log "Bildkomprimierung deaktiviert! \"pngquant\" installieren!"
 fi
 
 if command -v convert &>/dev/null ; then
@@ -299,10 +293,10 @@ else
 fi
 
 : SVGCONVERTER="${SVGCONVERTER:=rsvg}"  # Vorgabe ist rsvg
-if command -v inkscape &>/dev/null && [[ "$SVGCONVERTER" == 'inkscape' ]] ; then
+if command -v inkscape &>/dev/null && [[ "${SVGCONVERTER,,}" == 'inkscape' ]] ; then
   svgconverter='inkscape -w 850 --without-gui --export-area-drawing --export-png='
   echo -e "$msgINF Verwende Inkscape als SVG-Konverter!"
-elif command -v rsvg-convert &>/dev/null && [[ "$SVGCONVERTER" = 'rsvg' ]] ; then
+elif command -v rsvg-convert &>/dev/null && [[ "${SVGCONVERTER,,}" = 'rsvg' ]] ; then
   svgconverter=('rsvg-convert' -w 1000 --keep-aspect-ratio --output)
   echo -e "$msgINF Verwende rsvg als SVG-Konverter!"
 else
@@ -334,20 +328,18 @@ f_create-symlinks
 
 # Konvertierung der Logos
 logocount="${#logocollection[@]}"
-mkdir --parents "${temp}/cache" || { echo "Fehler beim erzeugen von ${temp}/cache" ; exit 1 ;}
+mkdir --parents "${temp}/cache" || { echo "Fehler beim erzeugen von ${temp}/cache" >&2 ; exit 1 ;}
 [[ ! -d "${LOGODIR}/logos" ]] && { mkdir --parents "${LOGODIR}/logos" || exit 1 ;}
 
-resolution="${LOGO_CONF[0]:=220x132}"
-resize="${LOGO_CONF[1]:=200x112}"
-type="${LOGO_CONF[2]:=dark}"
-background="${LOGO_CONF[3]:=transparent}"
-packagenamenoversion="${style}.${resolution}-${resize}.${type}.on.${background}"
+resolution="${LOGO_CONF[0]:=220x132}"  # Hintergrundgröße
+resize="${LOGO_CONF[1]:=200x112}"      # Logogröße
+type="${LOGO_CONF[2]:=dark}"           # Typ (dark/light)
+background="${LOGO_CONF[3]:=transparent}"  # Hintergrund (transparent/blue/...)
 
-echo -e "$msgINF Erzeuge Logos: ${packagenamenoversion}…"
-currentlogo=0
+echo -e "$msgINF Erzeuge Logos: ${style}.${resolution}-${resize}.${type}.on.${background}…"
 for logoname in "${logocollection[@]}" ; do
   ((currentlogo++))
-  echo -ne "$msgINF Konvertiere Logo: $currentlogo/$logocount"\\r
+  echo -ne "$msgINF Konvertiere Logo: ${currentlogo}/${logocount}"\\r
 
   if [[ -f "${location}/build-source/logos/${logoname}.${type}.png" || -f "${location}/build-source/logos/${logoname}.${type}.svg" ]] ; then
     logotype="$type"
@@ -355,15 +347,17 @@ for logoname in "${logocollection[@]}" ; do
     logotype='default'
   fi
 
-  echo "${logoname}.${logotype}" >> "$logfile"
+  echo "--> ${logoname}.${logotype}" >> "$logfile"
 
   if [[ -f "${location}/build-source/logos/${logoname}.${logotype}.svg" ]] ; then
+    ((svg++))
     [[ "${LOGODIR}/logos/${logoname}.png" -nt "${location}/build-source/logos/${logoname}.${logotype}.svg" ]] && continue  # Nur erstellen wenn neuer
     logo="${temp}/cache/${logoname}.${logotype}.png"
     if [[ ! -f "$logo" ]] ; then
       "${svgconverter[@]}" "${logo}" "${location}/build-source/logos/${logoname}.${logotype}.svg" &>> "$logfile"
     fi
   else
+    ((png++))
     logo="${location}/build-source/logos/${logoname}.${logotype}.png"
     [[ "${LOGODIR}/logos/${logoname}.png" -nt "$logo" ]] && continue  # Nur erstellen wenn neuer
   fi
@@ -377,19 +371,20 @@ for logoname in "${logocollection[@]}" ; do
 done
 
 cd "$LOGODIR" || exit 1
-echo -e "\n${msgINF} Verlinke Logos…"
+echo -e "\n${msgINF} Verlinke Kanallogos…"
 "${temp}/create-symlinks.sh"
 
 find "$LOGODIR" -xtype l -delete &>> "${LOGFILE:-/dev/null}"  # Alte (defekte) Symlinks löschen
 
 if [[ -d "$temp" ]] ; then rm --recursive --force "$temp" ; fi
 
-echo -e "$msgINF Erstellen von Logos (${style}) für VDR beendet!"
+echo -e "$msgINF Erstellen von Logos (${style}) beendet!"
 
 # Statistik anzeigen
 [[ "$nologo" -gt 0 ]] && f_log "==> Für $nologo Kanäle wurde kein Logo gefunden"
 [[ "$difflogo" -gt 0 ]] && f_log "==> Für $difflogo Kanäle wurden unterschiedliche Logos gefunden"
 [[ "$obs" -gt 0 ]] && f_log "==> $obs als 'OBSOLETE' markierte Kanäle wurden übersprungen"
+f_log "==> $((svg + png)) Logos: $svg im SVG-Format und $png im PNG-Format"
 f_log "==> ${N_LOGO:-0} neue oder aktualisierte Logos (Links zu Logos: ${logocount})"
 SCRIPT_TIMING[2]=$SECONDS  # Zeit nach der Statistik
 SCRIPT_TIMING[10]=$((SCRIPT_TIMING[2] - SCRIPT_TIMING[0]))  # Gesamt
