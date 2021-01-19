@@ -364,6 +364,11 @@ for logoname in "${logocollection[@]}" ; do
     [[ "${LOGODIR}/logos/${logoname}.png" -nt "$logo" ]] && continue  # Nur erstellen wenn neuer
   fi
 
+  # Hintergrund vorhanden?
+  if [[ -f "${location}/build-source/backgrounds/${resolution}/${background}.png" ]] ; then
+    echo "$msgWRN Hintergrund fehlt! (${location}/build-source/backgrounds/${resolution}/${background}.png)"
+  fi
+
   # Erstelle Logo mit Hintergrund
   convert "${location}/build-source/backgrounds/${resolution}/${background}.png" \
     \( "$logo" -background none -bordercolor none -border 100 -trim -border 1% -resize "$resize" -gravity center -extent "$resolution" +repage \) \
