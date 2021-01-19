@@ -73,14 +73,14 @@ f_create-symlinks() {  # Symlinks erzeugen
     fi
     if [[ "$logo_srp" != '--------' && "$logo_snp" != '--------' ]] ; then
       if [[ "$logo_srp" != "$logo_snp" ]] ; then  # Unterschiedliche Logos
+        echo -e "$msgWRN ?=> Unterschiedliche Logos für $channel (SRP: $logo_srp | SNP: ${logo_snp}) gefunden!"
+        if [[ -n "$LOGFILE" ]] ; then
+          f_log "Unterschiedliche Logos für $channel (SRP: $logo_srp | SNP: ${logo_snp}) gefunden!"
+        fi
         if [[ "${PREFERED_LOGO:=snp}" == 'srp' ]] ; then  # Bevorzugtes Logo verwenden
           logo_snp='--------'
         else
           logo_srp='--------'
-        fi
-        echo -e "$msgWRN ?=> Unterschiedliche Logos für $channel (SRP: $logo_srp | SNP: ${logo_snp}) gefunden!"
-        if [[ -n "$LOGFILE" ]] ; then
-          f_log "Unterschiedliche Logos für $channel (SRP: $logo_srp | SNP: ${logo_snp}) gefunden!"
         fi
         ((difflogo++))
       fi
@@ -90,7 +90,7 @@ f_create-symlinks() {  # Symlinks erzeugen
       mkdir --parents "${LOGODIR}/${ch_path}"
       logos='../logos'
     fi
-    if [[ "$logo_srp" != '--------' ]] ; then  #TODO: srp oder snp bevorzugen?
+    if [[ "$logo_srp" != '--------' ]] ; then
       echo "ln -s -f \"${logos:-logos}/${logo_srp}.png\" \"${servicename}.png\"" >> "${temp}/create-symlinks.sh"
       logocollection+=("$logo_srp")
     fi
