@@ -17,24 +17,24 @@ Es werden Symlinks erstellt, die dem VDR-Schema entsprechen.
 Die Logos können mit Hintergrundgrafik erstellt werden. Die Größe und der Stil
 sind einstellbar. Liste der Hintergründe:
 
-100x60:
-black.png  blue.png  reflection.png  transparent.png  white.png
+_70x53:_
+black, blue, reflection, transparent, white
 
-220x132:
-black.png  blue.png  reflection.png  transparent.png  white.png
+_100x60:_
+black, blue, reflection, transparent, white
 
-256x256:
-grey.png  reflection.png  transparent.png
+_220x132:_
+black, blue, reflection, transparent, white
 
-400x170:
-transparent.png
+_256x256:_
+grey, reflection, transparent
 
-400x240:
-blue.png  transparent.png
+_400x170:_
+transparent
 
-70x53:
-black.png  blue.png  reflection.png  transparent.png  white.png
+_400x240:_
+blue, transparent
 
-800x450:
-transparent.png
+_800x450:_
+transparent
 
