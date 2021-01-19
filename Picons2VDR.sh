@@ -365,8 +365,8 @@ for logoname in "${logocollection[@]}" ; do
   fi
 
   # Hintergrund vorhanden?
-  if [[ -f "${location}/build-source/backgrounds/${resolution}/${background}.png" ]] ; then
-    echo "$msgWRN Hintergrund fehlt! (${location}/build-source/backgrounds/${resolution}/${background}.png)"
+  if [[ ! -f "${location}/build-source/backgrounds/${resolution}/${background}.png" ]] ; then
+    echo -e "$msgWRN Hintergrund fehlt! (${location}/build-source/backgrounds/${resolution}/${background}.png)"
   fi
 
   # Erstelle Logo mit Hintergrund
