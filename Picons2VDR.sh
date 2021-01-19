@@ -179,7 +179,7 @@ else
 fi
 
 # Stil gültig?
-style="${1:=snp}"  # Vorgabe ist snp
+style="${1:-snp}"  # Vorgabe ist snp
 if [[ "${style,,}" != 'srp' && "${style,,}" != 'snp' ]] ; then
   echo -e "$msgERR Unbekannter Stil!$nc" >&2
   exit 1
