@@ -15,4 +15,26 @@ Im VDR-Logoverzeichnis wird ein Ordner "logos" angelegt, der die Kanallogos enth
 Es werden Symlinks erstellt, die dem VDR-Schema entsprechen.
 
 Die Logos können mit Hintergrundgrafik erstellt werden. Die Größe und der Stil
-sind einstellbar.
+sind einstellbar. Liste der Hintergründe:
+
+100x60:
+black.png  blue.png  reflection.png  transparent.png  white.png
+
+220x132:
+black.png  blue.png  reflection.png  transparent.png  white.png
+
+256x256:
+grey.png  reflection.png  transparent.png
+
+400x170:
+transparent.png
+
+400x240:
+blue.png  transparent.png
+
+70x53:
+black.png  blue.png  reflection.png  transparent.png  white.png
+
+800x450:
+transparent.png
+
