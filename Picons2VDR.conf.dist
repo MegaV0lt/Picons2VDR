@@ -23,6 +23,15 @@ LOGODIR='/etc/vdr/flatpluslogos'  # Logos für VDR-Skin
 # 220x132 190x102 light black
 # 220x132 190x102 light transparent
 
+# Liste der Hintergründe und deren Größe
+# 70x53: black, blue, reflection, transparent, white
+# 100x60: black, blue, reflection, transparent, white
+# 220x132: black, blue, reflection, transparent, white
+# 256x256: grey, reflection, transparent
+# 400x170: transparent
+# 400x240: blue, transparent
+# 800x450: transparent
+
 # Wenn für einen Kanal srp und snp Logos gefunden werden, wird per Voreinstellung
 # die 'snp' Version verwendet. srp oder snp verwenden
 PREFERED_LOGO='snp'  # Vorgabe
