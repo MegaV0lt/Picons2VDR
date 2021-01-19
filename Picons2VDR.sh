@@ -9,7 +9,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210118
+VERSION=210119
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -179,8 +179,8 @@ else
 fi
 
 # Stil gültig?
-style='snp'
-if [[ "$style" != 'srp' && "$style" != 'snp' ]] ; then
+style="${1:=snp}"  # Vorgabe ist snp
+if [[ "${style,,}" != 'srp' && "${style,,}" != 'snp' ]] ; then
   echo -e "$msgERR Unbekannter Stil!$nc" >&2
   exit 1
 fi
@@ -383,11 +383,11 @@ if [[ -d "$temp" ]] ; then rm --recursive --force "$temp" ; fi
 echo -e "$msgINF Erstellen von Logos (${style}) beendet!"
 
 # Statistik anzeigen
-[[ "$nologo" -gt 0 ]] && f_log "==> Für $nologo Kanäle wurde kein Logo gefunden"
-[[ "$difflogo" -gt 0 ]] && f_log "==> Für $difflogo Kanäle wurden unterschiedliche Logos gefunden (Vorgabe: ${PREFERED_LOGO})"
-[[ "$obs" -gt 0 ]] && f_log "==> $obs als 'OBSOLETE' markierte Kanäle wurden übersprungen"
+[[ "$nologo" -gt 0 ]] && f_log "==> Kanäle ohne Logo: $nologo"
+[[ "$difflogo" -gt 0 ]] && f_log "==> Kanäle mit unterschiedliche Logos: $difflogo (Vorgabe: ${PREFERED_LOGO})"
+[[ "$obs" -gt 0 ]] && f_log "==> Als 'OBSOLETE' markierte Kanäle: $obs"
 f_log "==> $((svg + png)) Logos: $svg im SVG-Format und $png im PNG-Format"
-f_log "==> ${N_LOGO:-0} neue oder aktualisierte Logos (Links zu Logos: ${logocount})"
+f_log "==> ${N_LOGO:-0} neue(s) oder aktualisierte(s) Logo(s) (Links zu Logos: ${logocount})"
 SCRIPT_TIMING[2]=$SECONDS  # Zeit nach der Statistik
 SCRIPT_TIMING[10]=$((SCRIPT_TIMING[2] - SCRIPT_TIMING[0]))  # Gesamt
 f_log "==> Skriptlaufzeit: $((SCRIPT_TIMING[10] / 60)) Minute(n) und $((SCRIPT_TIMING[10] % 60)) Sekunde(n)"
