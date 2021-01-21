@@ -8,6 +8,9 @@
 ### Hinweis zum ausfüllen: Wenn Variablen ($) verwendet werden,
 ### dann in doppelten " ansonsten können einfache ' benutzt werden
 
+# Skript automatisch aktualisieren. Auskommentieren falls nicht gewünscht
+AUTO_UPDATE='true'
+
 # 'LOGODIR' ist der Ordner, wo die Symlinks angelegt werden und das Skin (Z. B. SkinflatPlus)
 # die Kanallogos lädt. Verzeichnis ohne abschließendes '/'
 LOGODIR='/etc/vdr/flatpluslogos'  # Logos für VDR-Skin

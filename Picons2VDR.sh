@@ -9,7 +9,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210119
+VERSION=210121
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -24,6 +24,7 @@ msgINF='\e[42m \e[0m' ; msgWRN='\e[103m \e[0m'  # " " mit grünem/gelben Hinterg
 PICONS_GIT='https://github.com/picons/picons.git'  # Picon-Logos
 PICONS_DIR='picons.git'  # Ordner, wo die Picon-Kanallogos liegen (GIT)
 OLDIFS="$IFS"
+ARGS=("$@")  # Übergebene Parameter sichern
 
 ### Funktionen
 f_log() {  # Gibt die Meldung auf der Konsole und im Syslog aus
@@ -35,6 +36,27 @@ f_trim() {  # Leerzeichen am Anfang und am Ende entfernen
   : "${1#"${1%%[![:space:]]*}"}"
   : "${_%"${_##*[![:space:]]}"}"
   printf '%s\n' "$_"
+}
+
+f_self_update() {  # Automatisches Update
+  local BRANCH UPSTREAM
+  echo -e "$msgINF Starte Auto-Update…"
+  cd "$SELF_PATH" || exit 1
+  git fetch
+  BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream})
+  if [[ -n "$(git diff --name-only "$UPSTREAM" "$SELF_NAME")" ]] ; then
+    echo -e "$msgINF Neue Version von $SELF_NAME gefunden! Starte Update…"
+    git pull --force
+    git checkout "$BRANCH"
+    git pull --force || exit 1
+    echo -e "$msgINF Starte $SELF_NAME neu…"
+    cd - || exit 1   # Zürück ins alte Arbeitsverzeichnisr
+    exec "${SELF}" "${ARGS[@]}"
+    exit 1  # Alte Version des Skripts beenden
+  else
+    echo -e "$msgINF OK. Bereits die aktuelle Version"
+  fi
 }
 
 f_create-symlinks() {  # Symlinks erzeugen
@@ -138,6 +160,8 @@ fi
 
 f_log "==> $RUNDATE - $SELF_NAME #${VERSION} - Start..."
 f_log "$CONFLOADED Konfiguration: ${CONFIG}"
+
+[[ "$AUTO_UPDATE" == 'true' ]] && f_self_update
 
 # Pfade festlegen
 location="${SELF_PATH}/${PICONS_DIR}"  # Pfad vom GIT
