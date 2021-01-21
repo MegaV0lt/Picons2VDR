@@ -170,18 +170,18 @@ if [[ ! -d "${PICONS_DIR}/.git" ]] ; then
   echo -e "${msgINF}\n${msgINF} Zum abbrechen Strg-C drücken. Starte in 5 Sekunden…"
   sleep 5
   git clone --depth 1 "$PICONS_GIT" "$PICONS_DIR" || \
-    { echo -e "$msgERR Klonen hat nicht funktioniert!" >&2 ; exit 1 ;}
+    { echo -e "$msgERR Klonen hat nicht funktioniert!${nc}" >&2 ; exit 1 ;}
 else
-  echo -e "$msgINF Aktualisiere Picons in $PICONS_DIR"
+  echo -e "$msgINF Aktualisiere Picons in ${PICONS_DIR}…"
   cd "$PICONS_DIR" || exit 1
-  git pull >> "$logfile"
+  git pull &>> "$logfile"
   cd "$SELF_PATH" || exit 1
 fi
 
 # Stil gültig?
 style="${1:-snp}"  # Vorgabe ist snp
 if [[ "${style,,}" != 'srp' && "${style,,}" != 'snp' ]] ; then
-  echo -e "$msgERR Unbekannter Stil!$nc" >&2
+  echo -e "$msgERR Unbekannter Stil!${nc}" >&2
   exit 1
 fi
 
@@ -240,8 +240,7 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     snpchannelname[0]="${snpchannelname[0]//[[:space:]]}"
     snpchannelname[0]="${snpchannelname[0]//|}"
 
-    #logo_srp=$(grep -i -m 1 "^$unique_id" <<< "$index")  # | sed -n -e 's/.*=//p')
-    #logo_srp="${logo_srp#*=}"
+    #logo_srp=$(grep -i -m 1 "^$unique_id" <<< "$index" | sed -n -e 's/.*=//p')
     re="[[:space:]]${unique_id}([^[:space:]]*)"
     [[ "$index" =~ $re ]] && { logo_srp="${BASH_REMATCH[0]#*=}" ;} || logo_srp='--------'
     #[[ -z "$logo_srp" ]] && logo_srp='--------'
@@ -251,8 +250,7 @@ if [[ -f "$CHANNELSCONF" ]] ; then
       snpname="${snpchannelname[0]//\&/and}" ; snpname="${snpname//'*'/star}" ; snpname="${snpname//+/plus}"
       snpname="${snpname,,}" ; snpname="${snpname//[^a-z0-9]}"
       if [[ -n "$snpname" ]] ; then
-        #logo_snp=$(grep -i -m 1 "^$snpname=" <<< "$index")  # | sed -n -e 's/.*=//p')
-        #logo_snp="${logo_snp#*=}"
+        #logo_snp=$(grep -i -m 1 "^$snpname=" <<< "$index" | sed -n -e 's/.*=//p')
         re="[[:space:]]${snpname}=([^[:space:]]*)"
         [[ "$index" =~ $re ]] && { logo_snp="${BASH_REMATCH[1]}" ;} || logo_snp='--------'
       else
@@ -302,17 +300,15 @@ elif command -v rsvg-convert &>/dev/null && [[ "${SVGCONVERTER,,}" = 'rsvg' ]] ;
   svgconverter=('rsvg-convert' -w 1000 --keep-aspect-ratio --output)
   echo -e "$msgINF Verwende rsvg als SVG-Konverter!"
 else
-  echo -e "$msgERR SVG-Konverter: ${SVGCONVERTER} nicht gefunden!$nc" >&2
+  echo -e "$msgERR SVG-Konverter: ${SVGCONVERTER} nicht gefunden!${nc}" >&2
   exit 1
 fi
 
 # Prüfen ob Serviceliste existiert
-for file in "$location"/build-output/servicelist-*-"$style".txt ; do
-  if [[ ! -f "$file" ]] ; then
-    echo -e "$msgERR Keine $style Serviceliste gefunden!$nc" >&2
-    exit 1
-  fi
-done
+if [[ ! -f "${location}/build-output/servicelist-vdr-${style}.txt" ]] ; then
+  echo -e "$msgERR Keine $style Serviceliste gefunden!${nc}" >&2
+  exit 1
+fi
 
 # Einfache Prüfung der Quellen
 if [[ $- == *i* ]] ; then
