@@ -9,7 +9,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210121
+VERSION=210209
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -225,8 +225,9 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   mapfile -t channelsconf < "$CHANNELSCONF"         # Kanalliste in Array einlesen
 
   for nr in "${!channelsconf[@]}" ; do
-    [[ "${channelsconf[nr]:0:1}" == : ]] && { ((grp++)) ; continue ;}  # Kanalgruppe
+    [[ "${channelsconf[nr]:0:1}" == : ]] && { ((grp++)) ; continue ;}     # Kanalgruppe
     [[ "${channelsconf[nr]}" =~ OBSOLETE ]] && { ((obs++)) ; continue ;}  # Als 'OBSOLETE' markierter Kanal
+    [[ "${channelnames[nr]%%;*}" == '.' ]] && { ((bl++)) ; continue ;}    # '.' als Kanalname
     ((cnt++)) ; echo -ne "$msgINF Konvertiere Kanal #${cnt}"\\r
     IFS=':'
     read -r -a vdrchannel <<< "${channelsconf[nr]}"
@@ -410,7 +411,7 @@ echo -e "$msgINF Erstellen von Logos (${style}) beendet!"
 # Statistik anzeigen
 [[ "$nologo" -gt 0 ]] && f_log "==> Kanäle ohne Logo: $nologo"
 [[ "$difflogo" -gt 0 ]] && f_log "==> Kanäle mit unterschiedliche Logos: $difflogo (Vorgabe: ${PREFERED_LOGO})"
-[[ "$obs" -gt 0 ]] && f_log "==> Als 'OBSOLETE' markierte Kanäle: $obs"
+[[ "$obs" -gt 0 || "$bl" -gt 0 ]] && f_log "==> Übersprungen: 'OBSOLETE' (${obs:-0}), '.' (${bl:-0})"
 f_log "==> $((svg + png)) Logos: $svg im SVG-Format und $png im PNG-Format"
 f_log "==> ${N_LOGO:-0} neue(s) oder aktualisierte(s) Logo(s) (Links zu Logos: ${logocount})"
 SCRIPT_TIMING[2]=$SECONDS  # Zeit nach der Statistik
