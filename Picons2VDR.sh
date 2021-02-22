@@ -9,7 +9,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210209
+VERSION=210222
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -23,7 +23,6 @@ msgERR='\e[1;41m FEHLER! \e[0;1m' ; nc='\e[0m'  # Anzeige "FEHLER!"
 msgINF='\e[42m \e[0m' ; msgWRN='\e[103m \e[0m'  # " " mit grünem/gelben Hintergrund
 PICONS_GIT='https://github.com/picons/picons.git'  # Picon-Logos
 PICONS_DIR='picons.git'  # Ordner, wo die Picon-Kanallogos liegen (GIT)
-OLDIFS="$IFS"
 ARGS=("$@")  # Übergebene Parameter sichern
 
 ### Funktionen
@@ -66,8 +65,7 @@ f_create-symlinks() {  # Symlinks erzeugen
 
   mapfile -t servicelist < "${location}/build-output/servicelist-vdr-${style}.txt"  # Liste in Array einlesen
   for line in "${servicelist[@]}" ; do
-    IFS='|'
-    read -r -a line_data <<< "$line" # ??? tr -d '[=*=]' \
+    IFS='|' read -r -a line_data <<< "$line" # ??? tr -d '[=*=]' \
     #serviceref=$(f_trim "${line_data[0]}")
     channel=$(f_trim "${line_data[1]//:/|}")  # Kanalname (Doppelpunkt ersetzen)
     if [[ "${TOLOWER:-ALL}" == 'ALL' ]] ; then
@@ -78,13 +76,11 @@ f_create-symlinks() {  # Symlinks erzeugen
     link_srp=$(f_trim "${line_data[2]}")
     link_snp=$(f_trim "${line_data[3]}")
 
-    IFS='='
-    read -r -a lnk_srp <<< "$link_srp"
+    IFS='=' read -r -a lnk_srp <<< "$link_srp"
     logo_srp="${lnk_srp[1]}"
-    read -r -a lnk_snp <<< "$link_snp"
+    IFS='=' read -r -a lnk_snp <<< "$link_snp"
     logo_snp="${lnk_snp[1]}"
     #snpname="${lnk_snp[0]}"
-    IFS="$OLDIFS"
 
     if [[ "$logo_srp" == '--------' && "$logo_snp" == '--------' ]] ; then
       echo -e "$msgWRN !=> Kein Logo für $channel (SRP: ${lnk_srp[0]} | SNP: ${lnk_snp[0]}) gefunden!"
@@ -219,18 +215,17 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   LC_ALL='C'  # Schnelleres suchen (=~)
   file="${location}/build-output/servicelist-vdr-${style}.txt"
   tempfile=$(mktemp --suffix=.servicelist)
-  iconv -f utf-8 -t ascii//translit -c < "$CHANNELSCONF" -o "${temp}/channels.asc" 2>> "$logfile"
-  mapfile -t channelnames < "${temp}/channels.asc"  # Kanalliste in ASCII
+  # Kanalliste in ASCII umwandeln
+  mapfile -t channelnames < <(iconv -f utf-8 -t ascii//translit -c < "$CHANNELSCONF" 2>> "$logfile")
   channelnames=("${channelnames[@]%%:*}")           # Nur den Kanalnamen (Mit Provider und Kurzname)
   mapfile -t channelsconf < "$CHANNELSCONF"         # Kanalliste in Array einlesen
 
-  for nr in "${!channelsconf[@]}" ; do
-    [[ "${channelsconf[nr]:0:1}" == : ]] && { ((grp++)) ; continue ;}     # Kanalgruppe
-    [[ "${channelsconf[nr]}" =~ OBSOLETE ]] && { ((obs++)) ; continue ;}  # Als 'OBSOLETE' markierter Kanal
-    [[ "${channelnames[nr]%%;*}" == '.' ]] && { ((bl++)) ; continue ;}    # '.' als Kanalname
+  for i in "${!channelsconf[@]}" ; do
+    [[ "${channelsconf[i]:0:1}" == : ]] && { ((grp++)) ; continue ;}     # Kanalgruppe
+    [[ "${channelsconf[i]}" =~ OBSOLETE ]] && { ((obs++)) ; continue ;}  # Als 'OBSOLETE' markierter Kanal
+    [[ "${channelnames[i]%%;*}" == '.' ]] && { ((bl++)) ; continue ;}    # '.' als Kanalname
     ((cnt++)) ; echo -ne "$msgINF Konvertiere Kanal #${cnt}"\\r
-    IFS=':'
-    read -r -a vdrchannel <<< "${channelsconf[nr]}"
+    IFS=':' read -r -a vdrchannel <<< "${channelsconf[i]}"
 
     printf -v sid '%X' "${vdrchannel[9]}"
     printf -v tid '%X' "${vdrchannel[11]}"
@@ -253,10 +248,8 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     unique_id="${sid}_${tid}_${nid}_${namespace}"
     serviceref="1_0_${channeltype}_${unique_id}0000_0_0_0"
     serviceref_id="${unique_id}0000"
-    IFS=';'
-    read -r -a channelname <<< "${vdrchannel[0]}"
-    read -r -a snpchannelname <<< "${channelnames[nr]}"  # ASCII
-    IFS="$OLDIFS"
+    IFS=';' read -r -a channelname <<< "${vdrchannel[0]}"
+    IFS=';' read -r -a snpchannelname <<< "${channelnames[i]}"  # ASCII
     vdr_channelname="${channelname[0]%,*}"     # Kanalname ohne Kurzname
     vdr_channelname="${vdr_channelname//|/:}"  # | durch : ersetzen
 
