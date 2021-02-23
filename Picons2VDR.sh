@@ -2,14 +2,16 @@
 
 # Skript zum erzeugen und verlinken der PICON-Kanallogos (Enigma2)
 
-# Das benötigte GIT wird vom Skript lokal auf die Festplatte geladen
-# Die Dateinamen passen nicht zum VDR-Schema. Darum verwendet das Skript
-# aus den im GIT enthaltenen index-Dateien, um die Logos dann passend zu verlinken.
+# Das benötigte GIT wird vom Skript lokal auf die Festplatte geladen und bei jedem Start
+# automatisch aktualisiert.
+# Die Dateinamen der Logos passen nicht zum VDR-Schema. Darum verwendet das Skript die
+# im GIT enthaltenen index-Dateien, um die Logos mit Hilfe der 'channels.conf' dann passend
+# zu verlinken.
 
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210222
+VERSION=210223
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -23,7 +25,6 @@ msgERR='\e[1;41m FEHLER! \e[0;1m' ; nc='\e[0m'  # Anzeige "FEHLER!"
 msgINF='\e[42m \e[0m' ; msgWRN='\e[103m \e[0m'  # " " mit grünem/gelben Hintergrund
 PICONS_GIT='https://github.com/picons/picons.git'  # Picon-Logos
 PICONS_DIR='picons.git'  # Ordner, wo die Picon-Kanallogos liegen (GIT)
-ARGS=("$@")  # Übergebene Parameter sichern
 
 ### Funktionen
 f_log() {  # Gibt die Meldung auf der Konsole und im Syslog aus
@@ -51,22 +52,19 @@ f_self_update() {  # Automatisches Update
     git pull --force || exit 1
     echo -e "$msgINF Starte $SELF_NAME neu…"
     cd - || exit 1   # Zürück ins alte Arbeitsverzeichnisr
-    exec "${SELF}" "${ARGS[@]}"
+    exec "$SELF" "$@"
     exit 1  # Alte Version des Skripts beenden
   else
     echo -e "$msgINF OK. Bereits die aktuelle Version"
   fi
 }
 
-f_create-symlinks() {  # Symlinks erzeugen
+f_create-symlinks() {  # Symlinks erzeugen und Logos in Array sammeln
   local logo_srp logo_snp
-  echo '#!/bin/sh' > "${temp}/create-symlinks.sh"
-  chmod 755 "${temp}/create-symlinks.sh"
 
   mapfile -t servicelist < "${location}/build-output/servicelist-vdr-${style}.txt"  # Liste in Array einlesen
   for line in "${servicelist[@]}" ; do
-    IFS='|' read -r -a line_data <<< "$line" # ??? tr -d '[=*=]' \
-    #serviceref=$(f_trim "${line_data[0]}")
+    IFS='|' read -r -a line_data <<< "$line"  # ??? tr -d '[=*=]' \
     channel=$(f_trim "${line_data[1]//:/|}")  # Kanalname (Doppelpunkt ersetzen)
     if [[ "${TOLOWER:-ALL}" == 'ALL' ]] ; then
       servicename="${channel,,}"              # Alles in kleinbuchstaben
@@ -80,7 +78,6 @@ f_create-symlinks() {  # Symlinks erzeugen
     logo_srp="${lnk_srp[1]}"
     IFS='=' read -r -a lnk_snp <<< "$link_snp"
     logo_snp="${lnk_snp[1]}"
-    #snpname="${lnk_snp[0]}"
 
     if [[ "$logo_srp" == '--------' && "$logo_snp" == '--------' ]] ; then
       echo -e "$msgWRN !=> Kein Logo für $channel (SRP: ${lnk_srp[0]} | SNP: ${lnk_snp[0]}) gefunden!"
@@ -109,11 +106,11 @@ f_create-symlinks() {  # Symlinks erzeugen
       logos='../logos'
     fi
     if [[ "$logo_srp" != '--------' ]] ; then
-      echo "ln -s -f \"${logos:-logos}/${logo_srp}.png\" \"${servicename}.png\"" >> "${temp}/create-symlinks.sh"
+      symlinks+=("\"${logos:-logos}/${logo_srp}.png\" \"${servicename}.png\"")
       logocollection+=("$logo_srp")
     fi
     if [[ "$style" == 'snp' && "$logo_snp" != '--------' ]] ; then
-      echo "ln -s -f \"${logos:-logos}/${logo_snp}.png\" \"${servicename}.png\"" >> "${temp}/create-symlinks.sh"
+      symlinks+=("\"${logos:-logos}/${logo_snp}.png\" \"${servicename}.png\"")
       logocollection+=("$logo_snp")
     fi
     unset -v 'logos'
@@ -157,7 +154,7 @@ fi
 f_log "==> $RUNDATE - $SELF_NAME #${VERSION} - Start..."
 f_log "$CONFLOADED Konfiguration: ${CONFIG}"
 
-[[ "$AUTO_UPDATE" == 'true' ]] && f_self_update
+[[ "$AUTO_UPDATE" == 'true' ]] && f_self_update "$@"
 
 # Pfade festlegen
 location="${SELF_PATH}/${PICONS_DIR}"  # Pfad vom GIT
@@ -189,8 +186,8 @@ if [[ ! -d "${PICONS_DIR}/.git" ]] ; then
   echo -e "$msgINF Klone $PICONS_GIT nach $PICONS_DIR"
   echo -e "${msgINF}\n${msgINF} Zum abbrechen Strg-C drücken. Starte in 5 Sekunden…"
   sleep 5
-  git clone --depth 1 "$PICONS_GIT" "$PICONS_DIR" || \
-    { echo -e "$msgERR Klonen hat nicht funktioniert!${nc}" >&2 ; exit 1 ;}
+  git clone --depth 1 "$PICONS_GIT" "$PICONS_DIR" \
+    || { echo -e "$msgERR Klonen hat nicht funktioniert!${nc}" >&2 ; exit 1 ;}
 else
   echo -e "$msgINF Aktualisiere Picons in ${PICONS_DIR}…"
   cd "$PICONS_DIR" || exit 1
@@ -264,7 +261,6 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     #[[ -z "$logo_srp" ]] && logo_srp='--------'
 
     if [[ "$style" == 'snp' ]] ; then
-      #snpname=$(sed -e 's/&/and/g' -e 's/*/star/g' -e 's/+/plus/g' -e 's/\(.*\)/\L\1/g' -e 's/[^a-z0-9]//g' <<< "${snpchannelname[0]}")
       snpname="${snpchannelname[0]//\&/and}" ; snpname="${snpname//'*'/star}" ; snpname="${snpname//+/plus}"
       snpname="${snpname,,}" ; snpname="${snpname//[^a-z0-9]}"
       if [[ -n "$snpname" ]] ; then
@@ -310,7 +306,7 @@ else
   exit 1
 fi
 
-: SVGCONVERTER="${SVGCONVERTER:=rsvg}"  # Vorgabe ist rsvg
+: "${SVGCONVERTER:=rsvg}"  # Vorgabe ist rsvg
 if command -v inkscape &>/dev/null && [[ "${SVGCONVERTER,,}" == 'inkscape' ]] ; then
   svgconverter='inkscape -w 850 --without-gui --export-area-drawing --export-png='
   echo -e "$msgINF Verwende Inkscape als SVG-Konverter!"
@@ -333,14 +329,13 @@ if [[ $- == *i* ]] ; then
   echo -e "$msgINF Überprüfe index…"
   "$location/resources/tools/check-index.sh" "$location/build-source srp"
   "$location/resources/tools/check-index.sh" "$location/build-source snp"
-
   echo -e "$msgINF Überprüfe logos…"
   "$location/resources/tools/check-logos.sh" "$location/build-source/logos"
 fi
 
-# Datei 'create-symlinks.sh' erstellen
-echo -e "$msgINF Erzeuge Datei \"create-symlinks.sh\"…"
-f_create-symlinks
+# Array mit Symlinks erstellen und Logos sammeln
+echo -e "$msgINF Erzeuge Symlinks und Logosammlung…"
+f_create-symlinks  # Array's 'symlinks' und 'logocollection' erstellen
 
 # Konvertierung der Logos
 logocount="${#logocollection[@]}"
@@ -393,7 +388,9 @@ done
 
 cd "$LOGODIR" || exit 1
 echo -e "\n${msgINF} Verlinke Kanallogos…"
-"${temp}/create-symlinks.sh"
+for link in "${symlinks[@]}" ; do
+  eval "ln --symbolic --force $link" 2>> "${LOGFILE:-/dev/null}"
+done
 
 find "$LOGODIR" -xtype l -delete &>> "${LOGFILE:-/dev/null}"  # Alte (defekte) Symlinks löschen
 

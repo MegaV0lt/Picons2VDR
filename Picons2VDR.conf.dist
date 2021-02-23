@@ -2,6 +2,7 @@
 #
 # Alle Einstellungen zum Skript werden hier eingetragen. Diese Datei (Picons2VDR.conf) am
 # besten nach ~/etc kopieren. Das Skript findet sie dann automatisch.
+# Dem Skript kann man auch mit '-c /etc/MyConf.conf' den Ort und den Namen mitgeben.
 #
 #########################################################################################
 
@@ -36,11 +37,11 @@ LOGODIR='/etc/vdr/flatpluslogos'  # Logos für VDR-Skin
 # 800x450: transparent
 
 # Wenn für einen Kanal srp und snp Logos gefunden werden, wird per Voreinstellung
-# die 'snp' Version verwendet. srp oder snp verwenden
+# die 'snp' Version verwendet. 'srp' oder 'snp' verwenden
 PREFERED_LOGO='snp'  # Vorgabe
 
 # SVG-Konverter zum Wandeln der '*.svg' nach '*.png'
-# rsvg (librsvg2-bin) oder inkscape
+# 'rsvg' (librsvg2-bin) oder 'inkscape'
 SVGCONVERTER='rsvg'
 
 # Kanalliste vom VDR.
