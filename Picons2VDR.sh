@@ -212,8 +212,8 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   LC_ALL='C'  # Schnelleres suchen (=~)
   file="${location}/build-output/servicelist-vdr-${style}.txt"
   tempfile=$(mktemp --suffix=.servicelist)
-  # Kanalliste in ASCII umwandeln
-  mapfile -t channelnames < <(iconv -f utf-8 -t ascii//translit -c < "$CHANNELSCONF" 2>> "$logfile")
+  # Kanalliste in ASCII umwandeln (ohne -f utf-8)
+  mapfile -t channelnames < <(iconv -t ascii//translit -c < "$CHANNELSCONF" 2>> "$logfile")
   channelnames=("${channelnames[@]%%:*}")           # Nur den Kanalnamen (Mit Provider und Kurzname)
   mapfile -t channelsconf < "$CHANNELSCONF"         # Kanalliste in Array einlesen
 
