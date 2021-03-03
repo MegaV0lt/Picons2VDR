@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210223
+VERSION=210303
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -250,18 +250,17 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     vdr_channelname="${channelname[0]%,*}"     # Kanalname ohne Kurzname
     vdr_channelname="${vdr_channelname//|/:}"  # | durch : ersetzen
 
-    # sed -e 's/^[ \t]*//' -e 's/|//g' -e 's/^//g')
-    snpchannelname[0]="${snpchannelname[0]%,*}"
-    snpchannelname[0]="${snpchannelname[0]//[[:space:]]}"
-    snpchannelname[0]="${snpchannelname[0]//|}"
-
     #logo_srp=$(grep -i -m 1 "^$unique_id" <<< "$index" | sed -n -e 's/.*=//p')
     re="[[:space:]]${unique_id}([^[:space:]]*)"
     [[ "$index" =~ $re ]] && { logo_srp="${BASH_REMATCH[0]#*=}" ;} || logo_srp='--------'
     #[[ -z "$logo_srp" ]] && logo_srp='--------'
 
     if [[ "$style" == 'snp' ]] ; then
-      snpname="${snpchannelname[0]//\&/and}" ; snpname="${snpname//'*'/star}" ; snpname="${snpname//+/plus}"
+      # sed -e 's/^[ \t]*//' -e 's/|//g' -e 's/^//g')
+      snpname="${snpchannelname[0]%,*}"  # Ohne Kurznamen
+      #snpname="${snpname//[[:space:]]}"
+      #snpname="${snpname//|}"
+      snpname="${snpname//\&/and}" ; snpname="${snpname//'*'/star}" ; snpname="${snpname//+/plus}"
       snpname="${snpname,,}" ; snpname="${snpname//[^a-z0-9]}"
       if [[ -n "$snpname" ]] ; then
         #logo_snp=$(grep -i -m 1 "^$snpname=" <<< "$index" | sed -n -e 's/.*=//p')
