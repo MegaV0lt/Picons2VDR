@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210303
+VERSION=210308
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -209,13 +209,16 @@ index+=$(<"${location}/build-source/${style}.index")
 
 ### VDR Serviceliste erzeugen
 if [[ -f "$CHANNELSCONF" ]] ; then
-  LC_ALL='C'  # Schnelleres suchen (=~)
   file="${location}/build-output/servicelist-vdr-${style}.txt"
   tempfile=$(mktemp --suffix=.servicelist)
-  # Kanalliste in ASCII umwandeln (ohne -f utf-8)
-  mapfile -t channelnames < <(iconv -t ascii//translit -c < "$CHANNELSCONF" 2>> "$logfile")
+  read -r -a encoding < <(encguess -u "$CHANNELSCONF")
+  echo -e "$msgINF Encoding der Kanalliste: ${encoding[1]}"
+  # Kanalliste in ASCII umwandeln
+  mapfile -t channelnames < <(iconv -f "${encoding[1]:-utf-8}" -t ascii//translit -c < "$CHANNELSCONF" 2>> "$logfile")
   channelnames=("${channelnames[@]%%:*}")           # Nur den Kanalnamen (Mit Provider und Kurzname)
   mapfile -t channelsconf < "$CHANNELSCONF"         # Kanalliste in Array einlesen
+  [[ "${#channelnames[@]}" -ne "${#channelsconf[@]}" ]] && \
+    { echo -e "$msgERR Kanalliste und Kanalnamen unterschiedlich!${nc}" ; exit 1 ;}
 
   for i in "${!channelsconf[@]}" ; do
     [[ "${channelsconf[i]:0:1}" == : ]] && { ((grp++)) ; continue ;}     # Kanalgruppe
