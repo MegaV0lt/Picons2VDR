@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210308
+VERSION=210309
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -209,6 +209,7 @@ index+=$(<"${location}/build-source/${style}.index")
 
 ### VDR Serviceliste erzeugen
 if [[ -f "$CHANNELSCONF" ]] ; then
+  _LANG="$LANG"  # LC merken
   file="${location}/build-output/servicelist-vdr-${style}.txt"
   tempfile=$(mktemp --suffix=.servicelist)
   read -r -a encoding < <(encguess -u "$CHANNELSCONF")
@@ -253,16 +254,14 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     vdr_channelname="${channelname[0]%,*}"     # Kanalname ohne Kurzname
     vdr_channelname="${vdr_channelname//|/:}"  # | durch : ersetzen
 
+    LC_ALL='C'  # Halbiert sie Zeit beim suchen im index
     #logo_srp=$(grep -i -m 1 "^$unique_id" <<< "$index" | sed -n -e 's/.*=//p')
     re="[[:space:]]${unique_id}([^[:space:]]*)"
     [[ "$index" =~ $re ]] && { logo_srp="${BASH_REMATCH[0]#*=}" ;} || logo_srp='--------'
-    #[[ -z "$logo_srp" ]] && logo_srp='--------'
 
     if [[ "$style" == 'snp' ]] ; then
       # sed -e 's/^[ \t]*//' -e 's/|//g' -e 's/^//g')
       snpname="${snpchannelname[0]%,*}"  # Ohne Kurznamen
-      #snpname="${snpname//[[:space:]]}"
-      #snpname="${snpname//|}"
       snpname="${snpname//\&/and}" ; snpname="${snpname//'*'/star}" ; snpname="${snpname//+/plus}"
       snpname="${snpname,,}" ; snpname="${snpname//[^a-z0-9]}"
       if [[ -n "$snpname" ]] ; then
@@ -272,14 +271,14 @@ if [[ -f "$CHANNELSCONF" ]] ; then
       else
         snpname='--------'
       fi
-      #[[ -z "$logo_snp" ]] && logo_snp='--------'
       echo -e "${serviceref}\t${vdr_channelname}\t${serviceref_id}=${logo_srp}\t${snpname}=${logo_snp}" >> "$tempfile"
     else
       echo -e "${serviceref}\t${vdr_channelname}\t${serviceref_id}=${logo_srp}" >> "$tempfile"
     fi
+    LC_ALL="$_LANG"  # Sparcheinstellungen zurückstellen
   done
   #sort -t $'\t' -k 2,2 "$tempfile" | sed -e 's/\t/^|/g' | column -t -s $'^' | sed -e 's/|/  |  /g' > "$file"
-  sort -t $'\t' -k 2,2 "$tempfile" | sed -e 's/\t/  |  /g' > "$file"
+  sort --field-separator=$'\t' --key=2,2 "$tempfile" | sed -e 's/\t/  |  /g' > "$file"
   rm "$tempfile"
   echo -e "\n$msgINF Serviceliste exportiert nach $file"
 else
@@ -393,6 +392,16 @@ echo -e "\n${msgINF} Verlinke Kanallogos…"
 for link in "${symlinks[@]}" ; do
   eval "ln --symbolic --force $link" 2>> "${LOGFILE:-/dev/null}"
 done
+
+# Symlink/Logo History
+if [[ -n "$LOGO_HIST" ]] ; then
+  [[ ! "$LOGO_HIST" =~ / ]] && LOGO_HIST="${location}/build-output/${LOGO_HIST}"
+  if [[ -f "$LOGO_HIST" ]] ; then
+    mapfile -t logo_hist < "$LOGO_HIST"  # Vorherige Daten einlesen
+    symlinks+=("${logo_hist[@]}")        # Aktuelle hinzufügen
+  fi
+  printf '%s\n' "${symlinks[@]}" | sort --unique > "$LOGO_HIST"  # Neue DB schreiben
+fi
 
 find "$LOGODIR" -xtype l -delete &>> "${LOGFILE:-/dev/null}"  # Alte (defekte) Symlinks löschen
 

@@ -53,6 +53,9 @@ LOGGER='logger'                        # Logger oder auskommentieren für 'echo'
 # Logdatei. Wenn nicht gewünscht einfach auskommentiern
 LOGFILE="/var/log/${SELF_NAME%.*}.log" # Log-Datei
 
+# Verwendete Logos / Symlinks in einer History-Datei speichern
+#LOGO_HIST='Logos.history'  # Mit Pfad oder ohne. Pfad vorgabe ist 'build-output' im git
+
 # Maximale Größe der Logdatei. Bei überschreiten wird diese vom Skriot umbenannt in *.old
 MAXLOGSIZE=$((1024*50))                # Log-Datei: Maximale Größe in Byte
 
