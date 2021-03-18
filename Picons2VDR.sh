@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210309
+VERSION=210318
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -215,7 +215,7 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   read -r -a encoding < <(encguess -u "$CHANNELSCONF")
   echo -e "$msgINF Encoding der Kanalliste: ${encoding[1]}"
   # Kanalliste in ASCII umwandeln
-  mapfile -t channelnames < <(iconv -f "${encoding[1]:-utf-8}" -t ascii//translit -c < "$CHANNELSCONF" 2>> "$logfile")
+  mapfile -t channelnames < <(LC_CTYPE='de_DE.UTF-8' iconv -f "${encoding[1]:-UTF-8}" -t ASCII//TRANSLIT -c < "$CHANNELSCONF" 2>> "$logfile")
   channelnames=("${channelnames[@]%%:*}")           # Nur den Kanalnamen (Mit Provider und Kurzname)
   mapfile -t channelsconf < "$CHANNELSCONF"         # Kanalliste in Array einlesen
   [[ "${#channelnames[@]}" -ne "${#channelsconf[@]}" ]] && \
