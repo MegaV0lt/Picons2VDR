@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210318
+VERSION=210322
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -326,10 +326,10 @@ if [[ ! -f "${location}/build-output/servicelist-vdr-${style}.txt" ]] ; then
 fi
 
 # Einfache Prüfung der Quellen
-if [[ $- == *i* ]] ; then
-  echo -e "$msgINF Überprüfe index…"
-  "$location/resources/tools/check-index.sh" "$location/build-source srp"
-  "$location/resources/tools/check-index.sh" "$location/build-source snp"
+if [[ -t 1 ]] ; then
+  echo -e "$msgINF Überprüfe snp/srp Index…"
+  "$location/resources/tools/check-index.sh" "$location/build-source" srp
+  "$location/resources/tools/check-index.sh" "$location/build-source" snp
   echo -e "$msgINF Überprüfe logos…"
   "$location/resources/tools/check-logos.sh" "$location/build-source/logos"
 fi
@@ -410,8 +410,8 @@ if [[ -d "$temp" ]] ; then rm --recursive --force "$temp" ; fi
 echo -e "$msgINF Erstellen von Logos (${style}) beendet!"
 
 # Statistik anzeigen
-[[ "$nologo" -gt 0 ]] && f_log "==> Kanäle ohne Logo: $nologo"
-[[ "$difflogo" -gt 0 ]] && f_log "==> Kanäle mit unterschiedliche Logos: $difflogo (Vorgabe: ${PREFERED_LOGO})"
+[[ "$nologo" -gt 0 ]] && f_log "==> $nologo Kanäle ohne Logo"
+[[ "$difflogo" -gt 0 ]] && f_log "==> $difflogo Kanäle mit unterschiedlichen Logos (Vorgabe: ${PREFERED_LOGO})"
 [[ "$obs" -gt 0 || "$bl" -gt 0 ]] && f_log "==> Übersprungen: 'OBSOLETE' (${obs:-0}), '.' (${bl:-0})"
 f_log "==> $((svg + png)) Logos: $svg im SVG-Format und $png im PNG-Format"
 f_log "==> ${N_LOGO:-0} neue(s) oder aktualisierte(s) Logo(s) (Links zu Logos: ${logocount})"
