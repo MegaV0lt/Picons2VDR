@@ -47,9 +47,6 @@ SVGCONVERTER='rsvg'
 # Kanalliste vom VDR.
 CHANNELSCONF='/etc/vdr/channels.conf'  # VDR's Kanalliste
 
-# Ausgaben des Skripts via logger oder echo, wenn die Variable auskommentiert ist
-LOGGER='logger'                        # Logger oder auskommentieren für 'echo'
-
 # Logdatei. Wenn nicht gewünscht einfach auskommentiern
 LOGFILE="/var/log/${SELF_NAME%.*}.log" # Log-Datei
 

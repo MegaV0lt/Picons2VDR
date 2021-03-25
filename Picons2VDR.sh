@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210322
+VERSION=210325
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -27,9 +27,18 @@ PICONS_GIT='https://github.com/picons/picons.git'  # Picon-Logos
 PICONS_DIR='picons.git'  # Ordner, wo die Picon-Kanallogos liegen (GIT)
 
 ### Funktionen
-f_log() {  # Gibt die Meldung auf der Konsole und im Syslog aus
-  [[ -n "$LOGGER" ]] && { "$LOGGER" --stderr --tag "$SELF_NAME" "$*" ;} || echo "$*"
-  [[ -n "$LOGFILE" ]] && echo "$*" 2>/dev/null >> "$LOGFILE"  # Log in Datei
+f_log(){
+  local dt msg="${*:2}"
+  printf -v dt '%(%d.%m.%Y %T)T' -1  # Datum und Zeit (dd.mm.JJ HH:MM:SS)
+  case "${1^^}" in
+    'ERR'*|'FATAL') [[ -t 2 ]] && { echo -e "$msgERR ${msg:-$1}${nc}" ;} \
+                      || logger --tag "$SELF_NAME" --priority user.err "$@" ;;
+    'WARN') [[ -t 1 ]] && { echo -e "$msgWRN ${msg:-$1}" ;} || logger --tag "$SELF_NAME" "$@" ;;
+    'DEBUG') [[ -t 1 ]] && { echo -e "\e[1m${msg:-$1}${nc}" ;} || logger --tag "$SELF_NAME" "$@" ;;
+    *) [[ -t 1 ]] && { echo -e "$msgINF ${msg:-$1}" ;} \
+         || logger --tag "$SELF_NAME" "$@" ;;  # INFO und nicht angegebene
+  esac
+  [[ -n "$LOGFILE" ]] && echo "$dt ${1}: $msg" 2>/dev/null >> "$LOGFILE"  # Log in Datei
 }
 
 f_trim() {  # Leerzeichen am Anfang und am Ende entfernen
@@ -40,22 +49,22 @@ f_trim() {  # Leerzeichen am Anfang und am Ende entfernen
 
 f_self_update() {  # Automatisches Update
   local BRANCH UPSTREAM
-  echo -e "$msgINF Starte Auto-Update…"
+  f_log INFO 'Starte Auto-Update…'
   cd "$SELF_PATH" || exit 1
   git fetch
   BRANCH=$(git rev-parse --abbrev-ref HEAD)
   UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream})
   if [[ -n "$(git diff --name-only "$UPSTREAM" "$SELF_NAME")" ]] ; then
-    echo -e "$msgINF Neue Version von $SELF_NAME gefunden! Starte Update…"
+    f_log INFO "Neue Version von $SELF_NAME gefunden! Starte Update…"
     git pull --force
     git checkout "$BRANCH"
     git pull --force || exit 1
-    echo -e "$msgINF Starte $SELF_NAME neu…"
+    f_log INFO "Starte $SELF_NAME neu…"
     cd - || exit 1   # Zürück ins alte Arbeitsverzeichnisr
     exec "$SELF" "$@"
     exit 1  # Alte Version des Skripts beenden
   else
-    echo -e "$msgINF OK. Bereits die aktuelle Version"
+    f_log INFO 'OK. Bereits die aktuelle Version'
   fi
 }
 
@@ -80,18 +89,12 @@ f_create-symlinks() {  # Symlinks erzeugen und Logos in Array sammeln
     logo_snp="${lnk_snp[1]}"
 
     if [[ "$logo_srp" == '--------' && "$logo_snp" == '--------' ]] ; then
-      echo -e "$msgWRN !=> Kein Logo für $channel (SRP: ${lnk_srp[0]} | SNP: ${lnk_snp[0]}) gefunden!"
-      if [[ -n "$LOGFILE" ]] ; then
-        f_log "Kein Logo für $channel (SRP: ${lnk_srp[0]} | SNP: ${lnk_snp[0]}) gefunden!"
-      fi
+      f_log WARN "!=> Kein Logo für $channel (SRP: ${lnk_srp[0]} | SNP: ${lnk_snp[0]}) gefunden!"
       ((nologo++)) ; continue
     fi
     if [[ "$logo_srp" != '--------' && "$logo_snp" != '--------' ]] ; then
       if [[ "$logo_srp" != "$logo_snp" ]] ; then  # Unterschiedliche Logos
-        echo -e "$msgWRN ?=> Unterschiedliche Logos für $channel (SRP: $logo_srp | SNP: ${logo_snp}) gefunden!"
-        if [[ -n "$LOGFILE" ]] ; then
-          f_log "Unterschiedliche Logos für $channel (SRP: $logo_srp | SNP: ${logo_snp}) gefunden!"
-        fi
+        f_log WARN "?=> Unterschiedliche Logos für $channel (SRP: $logo_srp | SNP: ${logo_snp}) gefunden!"
         if [[ "${PREFERED_LOGO:=snp}" == 'srp' ]] ; then  # Bevorzugtes Logo verwenden
           logo_snp='--------'
         else
@@ -127,7 +130,7 @@ while getopts ":c:" opt ; do
        if [[ -f "$CONFIG" ]] ; then  # Konfig wurde angegeben und existiert
          source "$CONFIG" ; CONFLOADED='Angegebene' ; break
        else
-         f_log "Fehler! Die angegebene Konfigurationsdatei fehlt! (\"${CONFIG}\")"
+         f_log ERROR "Die angegebene Konfigurationsdatei fehlt! (\"${CONFIG}\")"
          exit 1
        fi ;;
     ?) ;;
@@ -146,13 +149,13 @@ if [[ -z "$CONFLOADED" ]] ; then  # Konfiguration wurde noch nicht geladen
     fi
   done
   if [[ -z "$CONFLOADED" ]] ; then  # Konfiguration wurde nicht gefunden
-    f_log "Fehler! Keine Konfigurationsdatei gefunden! (\"${CONFIG_DIRS[*]}\")"
+    f_log ERROR "Keine Konfigurationsdatei gefunden! (\"${CONFIG_DIRS[*]}\")"
     exit 1
   fi
 fi
 
-f_log "==> $RUNDATE - $SELF_NAME #${VERSION} - Start..."
-f_log "$CONFLOADED Konfiguration: ${CONFIG}"
+f_log INFO "==> $RUNDATE - $SELF_NAME #${VERSION} - Start…"
+f_log INFO "$CONFLOADED Konfiguration: ${CONFIG}"
 
 [[ "$AUTO_UPDATE" == 'true' ]] && f_self_update "$@"
 
@@ -160,11 +163,11 @@ f_log "$CONFLOADED Konfiguration: ${CONFIG}"
 location="${SELF_PATH}/${PICONS_DIR}"  # Pfad vom GIT
 logfile=$(mktemp --suffix=.servicelist.log)
 temp=$(mktemp -d --suffix=.picons)
-echo -e "$msgINF Log-Datei: $logfile"
+f_log INFO "Log-Datei: $logfile"
 
 # Benötigte Variablen prüfen
 for var in CHANNELSCONF LOGODIR ; do
-  [[ -z "${!var}" ]] && { echo -e "$msgERR Variable $var ist nicht gesetzt!${nc}" >&2 ; exit 1 ;}
+  [[ -z "${!var}" ]] && { f_log ERROR "Variable $var ist nicht gesetzt!" ; exit 1 ;}
 done
 
 # Benötigte Programme suchen
@@ -175,21 +178,21 @@ for cmd in "${commands[@]}" ; do
   fi
 done
 if [[ -n "${missingcommands[*]}" ]] ; then
-  echo -e "$msgERR Fehlende Datei(en): ${missingcommands[*]}${nc}" >&2
+  f_log ERROR "Fehlende Datei(en): ${missingcommands[*]}"
   exit 1
 fi
 
 # picons.git laden oder aktualisieren
 cd "$SELF_PATH" || exit 1
 if [[ ! -d "${PICONS_DIR}/.git" ]] ; then
-  echo -e "$msgWRN $PICONS_DIR nicht gefunden!"
-  echo -e "$msgINF Klone $PICONS_GIT nach $PICONS_DIR"
-  echo -e "${msgINF}\n${msgINF} Zum abbrechen Strg-C drücken. Starte in 5 Sekunden…"
+  f_log WARN "$PICONS_DIR nicht gefunden!"
+  f_log INFO "Klone $PICONS_GIT nach $PICONS_DIR"
+  f_log INFO "=> Zum abbrechen Strg-C drücken => Starte in 5 Sekunden…"
   sleep 5
   git clone --depth 1 "$PICONS_GIT" "$PICONS_DIR" \
-    || { echo -e "$msgERR Klonen hat nicht funktioniert!${nc}" >&2 ; exit 1 ;}
+    || { f_log ERROR 'Klonen hat nicht funktioniert!' ; exit 1 ;}
 else
-  echo -e "$msgINF Aktualisiere Picons in ${PICONS_DIR}…"
+  f_log INFO "Aktualisiere Picons in ${PICONS_DIR}…"
   cd "$PICONS_DIR" || exit 1
   git pull &>> "$logfile"
   cd "$SELF_PATH" || exit 1
@@ -198,7 +201,7 @@ fi
 # Stil gültig?
 style="${1:-snp}"  # Vorgabe ist snp
 if [[ "${style,,}" != 'srp' && "${style,,}" != 'snp' ]] ; then
-  echo -e "$msgERR Unbekannter Stil!${nc}" >&2
+  f_log ERROR 'Unbekannter Stil!'
   exit 1
 fi
 
@@ -213,13 +216,13 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   file="${location}/build-output/servicelist-vdr-${style}.txt"
   tempfile=$(mktemp --suffix=.servicelist)
   read -r -a encoding < <(encguess -u "$CHANNELSCONF")
-  echo -e "$msgINF Encoding der Kanalliste: ${encoding[1]}"
+  f_log INFO "Encoding der Kanalliste: ${encoding[1]:-unbekannt}"
   # Kanalliste in ASCII umwandeln
   mapfile -t channelnames < <(LC_CTYPE='de_DE.UTF-8' iconv -f "${encoding[1]:-UTF-8}" -t ASCII//TRANSLIT -c < "$CHANNELSCONF" 2>> "$logfile")
   channelnames=("${channelnames[@]%%:*}")           # Nur den Kanalnamen (Mit Provider und Kurzname)
   mapfile -t channelsconf < "$CHANNELSCONF"         # Kanalliste in Array einlesen
   [[ "${#channelnames[@]}" -ne "${#channelsconf[@]}" ]] && \
-    { echo -e "$msgERR Kanalliste und Kanalnamen unterschiedlich!${nc}" ; exit 1 ;}
+    { f_log ERROR 'Kanalliste und Kanalnamen unterschiedlich!' ; exit 1 ;}
 
   for i in "${!channelsconf[@]}" ; do
     [[ "${channelsconf[i]:0:1}" == : ]] && { ((grp++)) ; continue ;}     # Kanalgruppe
@@ -280,62 +283,62 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   #sort -t $'\t' -k 2,2 "$tempfile" | sed -e 's/\t/^|/g' | column -t -s $'^' | sed -e 's/|/  |  /g' > "$file"
   sort --field-separator=$'\t' --key=2,2 "$tempfile" | sed -e 's/\t/  |  /g' > "$file"
   rm "$tempfile"
-  echo -e "\n$msgINF Serviceliste exportiert nach $file"
+  echo -e '\n'
+  f_log INFO "Serviceliste exportiert nach $file"
 else
-  echo -e "$msgERR $CHANNELSCONF nicht gefunden!${nc}" >&2
+  f_log ERROR "$CHANNELSCONF nicht gefunden!"
   exit 1
 fi
 
 ### Icons mit Hintergrund erstellen ###
 
 logfile=$(mktemp --suffix=.picons.log)
-echo -e "$msgINF Log-Datei: $logfile"
+f_log INFO "Log-Datei: $logfile"
 
 if command -v pngquant &>/dev/null ; then
   pngquant='pngquant'
-  echo -e "$msgINF Bildkomprimierung aktiviert!"
+  f_log INFO 'Bildkomprimierung aktiviert!'
 else
   pngquant='cat'
-  echo -e "$msgWRN Bildkomprimierung deaktiviert! \"pngquant\" installieren!"
-  f_log "Bildkomprimierung deaktiviert! \"pngquant\" installieren!"
+  f_log WARN 'Bildkomprimierung deaktiviert! "pngquant" installieren!'
 fi
 
 if command -v convert &>/dev/null ; then
-  echo -e "$msgINF ImageMagick gefunden!"
+  f_log INFO 'ImageMagick gefunden!'
 else
-  echo -e "$msgERR ImageMagick nicht gefunden! \"ImageMagick\" installieren!" >&2
+  f_log ERROR 'ImageMagick nicht gefunden! "ImageMagick" installieren!'
   exit 1
 fi
 
 : "${SVGCONVERTER:=rsvg}"  # Vorgabe ist rsvg
 if command -v inkscape &>/dev/null && [[ "${SVGCONVERTER,,}" == 'inkscape' ]] ; then
   svgconverter='inkscape -w 850 --without-gui --export-area-drawing --export-png='
-  echo -e "$msgINF Verwende Inkscape als SVG-Konverter!"
+  f_log INFO 'Verwende Inkscape als SVG-Konverter!'
 elif command -v rsvg-convert &>/dev/null && [[ "${SVGCONVERTER,,}" = 'rsvg' ]] ; then
   svgconverter=('rsvg-convert' -w 1000 --keep-aspect-ratio --output)
-  echo -e "$msgINF Verwende rsvg als SVG-Konverter!"
+  f_log INFO 'Verwende rsvg als SVG-Konverter!'
 else
-  echo -e "$msgERR SVG-Konverter: ${SVGCONVERTER} nicht gefunden!${nc}" >&2
+  f_log ERROR "SVG-Konverter: ${SVGCONVERTER} nicht gefunden!"
   exit 1
 fi
 
 # Prüfen ob Serviceliste existiert
 if [[ ! -f "${location}/build-output/servicelist-vdr-${style}.txt" ]] ; then
-  echo -e "$msgERR Keine $style Serviceliste gefunden!${nc}" >&2
+  f_log ERROR "Keine $style Serviceliste gefunden!"
   exit 1
 fi
 
 # Einfache Prüfung der Quellen
 if [[ -t 1 ]] ; then
-  echo -e "$msgINF Überprüfe snp/srp Index…"
+  f_log INFO 'Überprüfe snp/srp Index…'
   "$location/resources/tools/check-index.sh" "$location/build-source" srp
   "$location/resources/tools/check-index.sh" "$location/build-source" snp
-  echo -e "$msgINF Überprüfe logos…"
+  f_log INFO 'Überprüfe logos…'
   "$location/resources/tools/check-logos.sh" "$location/build-source/logos"
 fi
 
 # Array mit Symlinks erstellen und Logos sammeln
-echo -e "$msgINF Erzeuge Symlinks und Logosammlung…"
+f_log INFO 'Erzeuge Symlinks und Logosammlung…'
 f_create-symlinks  # Array's 'symlinks' und 'logocollection' erstellen
 
 # Konvertierung der Logos
@@ -348,10 +351,10 @@ resize="${LOGO_CONF[1]:=200x112}"      # Logogröße
 type="${LOGO_CONF[2]:=dark}"           # Typ (dark/light)
 background="${LOGO_CONF[3]:=transparent}"  # Hintergrund (transparent/blue/...)
 
-echo -e "$msgINF Erzeuge Logos: ${style}.${resolution}-${resize}.${type}.on.${background}…"
+f_log INFO "Erzeuge Logos: ${style}.${resolution}-${resize}.${type}.on.${background}…"
 for logoname in "${logocollection[@]}" ; do
   ((currentlogo++))
-  echo -ne "$msgINF Konvertiere Logo: ${currentlogo}/${logocount}"\\r
+  [[ -t 1 ]] && echo -ne "$msgINF Konvertiere Logo: ${currentlogo}/${logocount}"\\r
 
   if [[ -f "${location}/build-source/logos/${logoname}.${type}.png" || -f "${location}/build-source/logos/${logoname}.${type}.svg" ]] ; then
     logotype="$type"
@@ -376,7 +379,7 @@ for logoname in "${logocollection[@]}" ; do
 
   # Hintergrund vorhanden?
   if [[ ! -f "${location}/build-source/backgrounds/${resolution}/${background}.png" ]] ; then
-    echo -e "$msgWRN Hintergrund fehlt! (${location}/build-source/backgrounds/${resolution}/${background}.png)"
+    f_log WARN "Hintergrund fehlt! (${location}/build-source/backgrounds/${resolution}/${background}.png)"
   fi
 
   # Erstelle Logo mit Hintergrund
@@ -388,7 +391,8 @@ for logoname in "${logocollection[@]}" ; do
 done
 
 cd "$LOGODIR" || exit 1
-echo -e "\n${msgINF} Verlinke Kanallogos…"
+echo -e '\n'
+f_log INFO 'Verlinke Kanallogos…'
 for link in "${symlinks[@]}" ; do
   eval "ln --symbolic --force $link" 2>> "${LOGFILE:-/dev/null}"
 done
@@ -405,9 +409,9 @@ fi
 
 find "$LOGODIR" -xtype l -delete &>> "${LOGFILE:-/dev/null}"  # Alte (defekte) Symlinks löschen
 
-if [[ -d "$temp" ]] ; then rm --recursive --force "$temp" ; fi
+[[ -d "$temp" ]] && rm --recursive "$temp"
 
-echo -e "$msgINF Erstellen von Logos (${style}) beendet!"
+f_log INFO "Erstellen von Logos (${style}) beendet!"
 
 # Statistik anzeigen
 [[ "$nologo" -gt 0 ]] && f_log "==> $nologo Kanäle ohne Logo"
