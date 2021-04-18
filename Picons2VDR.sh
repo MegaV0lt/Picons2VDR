@@ -27,18 +27,18 @@ PICONS_GIT='https://github.com/picons/picons.git'  # Picon-Logos
 PICONS_DIR='picons.git'  # Ordner, wo die Picon-Kanallogos liegen (GIT)
 
 ### Funktionen
-f_log(){
+f_log(){  # Logausgabe auf Konsole oder via Logger. $1 zum kennzeichnen der Meldung.
   local dt msg="${*:2}"
   printf -v dt '%(%d.%m.%Y %T)T' -1  # Datum und Zeit (dd.mm.JJ HH:MM:SS)
   case "${1^^}" in
     'ERR'*|'FATAL') [[ -t 2 ]] && { echo -e "$msgERR ${msg:-$1}${nc}" ;} \
                       || logger --tag "$SELF_NAME" --priority user.err "$@" ;;
-    'WARN') [[ -t 1 ]] && { echo -e "$msgWRN ${msg:-$1}" ;} || logger --tag "$SELF_NAME" "$@" ;;
+    'WARN'*) [[ -t 1 ]] && { echo -e "$msgWRN ${msg:-$1}" ;} || logger --tag "$SELF_NAME" "$@" ;;
     'DEBUG') [[ -t 1 ]] && { echo -e "\e[1m${msg:-$1}${nc}" ;} || logger --tag "$SELF_NAME" "$@" ;;
-    *) [[ -t 1 ]] && { echo -e "$msgINF ${msg:-$1}" ;} \
-         || logger --tag "$SELF_NAME" "$@" ;;  # INFO und nicht angegebene
+    'INFO'*) [[ -t 1 ]] && { echo -e "$msgINF ${msg:-$1}" ;} || logger --tag "$SELF_NAME" "$@" ;;
+    *) [[ -t 1 ]] && { echo -e "$@" ;} || logger --tag "$SELF_NAME" "$@" ;;  # Nicht angegebene
   esac
-  [[ -n "$LOGFILE" ]] && echo "$dt ${1}: $msg" 2>/dev/null >> "$LOGFILE"  # Log in Datei
+  [[ -n "$LOGFILE" ]] && echo "${dt}: $@" 2>/dev/null >> "$LOGFILE"  # Log in Datei
 }
 
 f_trim() {  # Leerzeichen am Anfang und am Ende entfernen
