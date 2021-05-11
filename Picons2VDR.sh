@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210418
+VERSION=210419
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -20,7 +20,6 @@ VERSION=210418
 SELF="$(readlink /proc/$$/fd/255)" || SELF="$0"  # Eigener Pfad (besseres $0)
 SELF_NAME="${SELF##*/}"
 SELF_PATH="${SELF%/*}"
-printf -v RUNDATE '%(%d.%m.%Y %R)T' -1  # Aktuelles Datum und Zeit
 msgERR='\e[1;41m FEHLER! \e[0;1m' ; nc='\e[0m'  # Anzeige "FEHLER!"
 msgINF='\e[42m \e[0m' ; msgWRN='\e[103m \e[0m'  # " " mit grünem/gelben Hintergrund
 PICONS_GIT='https://github.com/picons/picons.git'  # Picon-Logos
@@ -28,8 +27,7 @@ PICONS_DIR='picons.git'  # Ordner, wo die Picon-Kanallogos liegen (GIT)
 
 ### Funktionen
 f_log(){  # Logausgabe auf Konsole oder via Logger. $1 zum kennzeichnen der Meldung.
-  local dt msg="${*:2}"
-  printf -v dt '%(%d.%m.%Y %T)T' -1  # Datum und Zeit (dd.mm.JJ HH:MM:SS)
+  local msg="${*:2}"
   case "${1^^}" in
     'ERR'*|'FATAL') [[ -t 2 ]] && { echo -e "$msgERR ${msg:-$1}${nc}" ;} \
                       || logger --tag "$SELF_NAME" --priority user.err "$@" ;;
@@ -38,7 +36,7 @@ f_log(){  # Logausgabe auf Konsole oder via Logger. $1 zum kennzeichnen der Meld
     'INFO'*) [[ -t 1 ]] && { echo -e "$msgINF ${msg:-$1}" ;} || logger --tag "$SELF_NAME" "$@" ;;
     *) [[ -t 1 ]] && { echo -e "$@" ;} || logger --tag "$SELF_NAME" "$@" ;;  # Nicht angegebene
   esac
-  [[ -n "$LOGFILE" ]] && echo "${dt}: $@" 2>/dev/null >> "$LOGFILE"  # Log in Datei
+  [[ -n "$LOGFILE" ]] && printf '%(%d.%m.%Y %T)T: %b\n' -1 "$*" 2>/dev/null >> "$LOGFILE"  # Log in Datei
 }
 
 f_trim() {  # Leerzeichen am Anfang und am Ende entfernen
@@ -105,7 +103,8 @@ f_create-symlinks() {  # Symlinks erzeugen und Logos in Array sammeln
     fi
     if [[ "$servicename" =~ / ]] ; then  # Kanal mit / im Namen
       ch_path="${servicename%/*}"        # Der Teil vor dem lezten /
-      mkdir --parents "${LOGODIR}/${ch_path}"
+      mkdir --parents "${LOGODIR}/${ch_path}" \
+        || f_log ERROR "Ordner ${LOGODIR}/${ch_path} konnte nicht erstellt werden!"
       logos='../logos'
     fi
     if [[ "$logo_srp" != '--------' ]] ; then
@@ -154,7 +153,7 @@ if [[ -z "$CONFLOADED" ]] ; then  # Konfiguration wurde noch nicht geladen
   fi
 fi
 
-f_log INFO "==> $RUNDATE - $SELF_NAME #${VERSION} - Start…"
+f_log INFO "==> $SELF_NAME #${VERSION} - Start…"
 f_log INFO "$CONFLOADED Konfiguration: ${CONFIG}"
 
 [[ "$AUTO_UPDATE" == 'true' ]] && f_self_update "$@"
@@ -173,9 +172,7 @@ done
 # Benötigte Programme suchen
 commands=(bc column find iconv ln mkdir mv printf readlink rm sed sort)
 for cmd in "${commands[@]}" ; do
-  if ! command -v "$cmd" &>/dev/null ; then
-    missingcommands+=("$cmd")
-  fi
+  command -v "$cmd" &>/dev/null || missingcommands+=("$cmd")
 done
 if [[ -n "${missingcommands[*]}" ]] ; then
   f_log ERROR "Fehlende Datei(en): ${missingcommands[*]}"
