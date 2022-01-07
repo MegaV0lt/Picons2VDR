@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=210419
+VERSION=220107
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -66,7 +66,7 @@ f_self_update() {  # Automatisches Update
   fi
 }
 
-f_create-symlinks() {  # Symlinks erzeugen und Logos in Array sammeln
+f_create_symlinks() {  # Symlinks erzeugen und Logos in Array sammeln
   local logo_srp logo_snp
 
   mapfile -t servicelist < "${location}/build-output/servicelist-vdr-${style}.txt"  # Liste in Array einlesen
@@ -336,7 +336,7 @@ fi
 
 # Array mit Symlinks erstellen und Logos sammeln
 f_log INFO 'Erzeuge Symlinks und Logosammlung…'
-f_create-symlinks  # Array's 'symlinks' und 'logocollection' erstellen
+f_create_symlinks  # Array's 'symlinks' und 'logocollection' erstellen
 
 # Konvertierung der Logos
 logocount="${#logocollection[@]}"
