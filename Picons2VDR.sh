@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=220107
+VERSION=231031
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -192,6 +192,8 @@ else
   f_log INFO "Aktualisiere Picons in ${PICONS_DIR}…"
   cd "$PICONS_DIR" || exit 1
   git pull &>> "$logfile"
+  last_logo_update="$(git log -1 --date=format:"%d.%m.%Y %T" --format="%ad")"
+  f_log INFO "Letztes Update der Logos: $last_logo_update"
   cd "$SELF_PATH" || exit 1
 fi
 
