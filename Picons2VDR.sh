@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=231031
+VERSION=231124
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -73,11 +73,11 @@ f_create_symlinks() {  # Symlinks erzeugen und Logos in Array sammeln
   for line in "${servicelist[@]}" ; do
     IFS='|' read -r -a line_data <<< "$line"  # ??? tr -d '[=*=]' \
     channel=$(f_trim "${line_data[1]//:/|}")  # Kanalname (Doppelpunkt ersetzen)
-    if [[ "${TOLOWER:-ALL}" == 'ALL' ]] ; then
-      servicename="${channel,,}"              # Alles in kleinbuchstaben
-    else
-      servicename="${channel,,[A-Z]}"         # In Kleinbuchstaben (Außer Umlaute)
-    fi
+    case "${TOLOWER^^}" in
+      'A-Z') servicename="${channel,,[A-Z]}" ;;  # In Kleinbuchstaben (Außer Umlaute)
+      'FALSE') servicename="$channel" ;;         # Nicht umwandeln
+      *) servicename="${channel,,}" ;;           # Alles in kleinbuchstaben
+    esac
     link_srp=$(f_trim "${line_data[2]}")
     link_snp=$(f_trim "${line_data[3]}")
 
