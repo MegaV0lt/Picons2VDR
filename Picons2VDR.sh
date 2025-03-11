@@ -231,7 +231,10 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     [[ "${channelsconf[i]:0:1}" == : ]] && { ((grp++)) ; continue ;}     # Kanalgruppe
     [[ "${channelsconf[i]}" =~ OBSOLETE ]] && { ((obs++)) ; continue ;}  # Als 'OBSOLETE' markierter Kanal
     [[ "${channelnames[i]%%;*}" == '.' ]] && { ((bl++)) ; continue ;}    # '.' als Kanalname
-    ((cnt++)) ; echo -ne "$msgINF Konvertiere Kanalname -> Service #${cnt}"\\r
+    ((cnt++)) #; echo -ne "$msgINF Konvertiere Kanalname -> Service #${cnt}"\\r
+    # Replace echo with printf for better performance in progress display
+    printf '\r%s Konvertiere Kanalname -> Service #%d' "$msgINF" "$cnt"
+
     IFS=':' read -r -a vdrchannel <<< "${channelsconf[i]}"
 
     printf -v sid '%X' "${vdrchannel[9]}"
@@ -429,9 +432,11 @@ if [[ -n "$LOGO_HIST" ]] ; then
 fi
 
 # Aufräumen
-{ find "$LOGODIR" -xtype l -delete        # Alte (defekte) Symlinks löschen
-  find "$LOGODIR" -type d -empty -delete  # Leere Verzeichnisse löschen
-} &>> "${LOGFILE:-/dev/null}"
+if [[ -d "$LOGODIR" && "$LOGODIR" != "/" ]] ; then
+  { find "$LOGODIR" -xtype l -delete        # Alte (defekte) Symlinks löschen
+    find "$LOGODIR" -type d -empty -delete  # Leere Verzeichnisse löschen
+  } &>> "${LOGFILE:-/dev/null}"
+fi
 [[ -d "$temp" ]] && rm --recursive "$temp"
 
 f_log INFO "Erstellen von Logos (${style}) beendet!"
