@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=231124
+VERSION=250311  # Version des Skripts
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -40,9 +40,7 @@ f_log(){  # Logausgabe auf Konsole oder via Logger. $1 zum kennzeichnen der Meld
 }
 
 f_trim() {  # Leerzeichen am Anfang und am Ende entfernen
-  : "${1#"${1%%[![:space:]]*}"}"
-  : "${_%"${_##*[![:space:]]}"}"
-  printf '%s\n' "$_"
+  printf '%s\n' "${1#"${1%%[![:space:]]*}"}${1##*[![:space:]]}"
 }
 
 f_self_update() {  # Automatisches Update
@@ -58,7 +56,7 @@ f_self_update() {  # Automatisches Update
     git checkout "$BRANCH"
     git pull --force || exit 1
     f_log INFO "Starte $SELF_NAME neu…"
-    cd - || exit 1   # Zürück ins alte Arbeitsverzeichnisr
+    cd - || exit 1   # Zurück ins alte Arbeitsverzeichnis
     exec "$SELF" "$@"
     exit 1  # Alte Version des Skripts beenden
   else
@@ -67,17 +65,20 @@ f_self_update() {  # Automatisches Update
 }
 
 f_create_symlinks() {  # Symlinks erzeugen und Logos in Array sammeln
-  local logo_srp logo_snp
+  local logo_srp logo_snp link_srp link_snp
 
   mapfile -t servicelist < "${location}/build-output/servicelist-vdr-${style}.txt"  # Liste in Array einlesen
   for line in "${servicelist[@]}" ; do
-    IFS='|' read -r -a line_data <<< "$line"  # ??? tr -d '[=*=]' \
-    channel=$(f_trim "${line_data[1]//:/|}")  # Kanalname (Doppelpunkt ersetzen)
+    IFS=$'\t' read -r -a line_data <<< "$line"
+    # IFS='|' read -r -a line_data <<< "$line"
+
+    channel=$(f_trim "${line_data[1]//:/|}")
     case "${TOLOWER^^}" in
       'A-Z') servicename="${channel,,[A-Z]}" ;;  # In Kleinbuchstaben (Außer Umlaute)
       'FALSE') servicename="$channel" ;;         # Nicht umwandeln
       *) servicename="${channel,,}" ;;           # Alles in kleinbuchstaben
     esac
+
     link_srp=$(f_trim "${line_data[2]}")
     link_snp=$(f_trim "${line_data[3]}")
 
@@ -90,33 +91,32 @@ f_create_symlinks() {  # Symlinks erzeugen und Logos in Array sammeln
       f_log WARN "!=> Kein Logo für $channel (SRP: ${lnk_srp[0]} | SNP: ${lnk_snp[0]}) gefunden!"
       ((nologo++)) ; continue
     fi
-    if [[ "$logo_srp" != '--------' && "$logo_snp" != '--------' ]] ; then
-      if [[ "$logo_srp" != "$logo_snp" ]] ; then  # Unterschiedliche Logos
-        f_log WARN "?=> Unterschiedliche Logos für $channel (SRP: $logo_srp | SNP: ${logo_snp}) gefunden!"
-        if [[ "${PREFERED_LOGO:=snp}" == 'srp' ]] ; then  # Bevorzugtes Logo verwenden
-          logo_snp='--------'
-        else
-          logo_srp='--------'
-        fi
-        ((difflogo++))
+
+    if [[ "$logo_srp" != '--------' && "$logo_snp" != '--------' && "$logo_srp" != "$logo_snp" ]] ; then  # Unterschiedliche Logos
+      f_log WARN "?=> Unterschiedliche Logos für $channel (SRP: $logo_srp | SNP: ${logo_snp}) gefunden!"
+      if [[ "${PREFERED_LOGO:=snp}" == 'srp' ]] ; then  # Bevorzugtes Logo verwenden
+        logo_snp='--------'
+      else
+        logo_srp='--------'
       fi
+      ((difflogo++))
     fi
-    if [[ "$servicename" =~ / ]] ; then  # Kanal mit / im Namen
-      ch_path="${servicename%/*}"        # Der Teil vor dem lezten /
-      mkdir --parents "${LOGODIR}/${ch_path}" \
-        || f_log ERROR "Ordner ${LOGODIR}/${ch_path} konnte nicht erstellt werden!"
-      logos='../logos'
-    fi
+
     if [[ "$logo_srp" != '--------' ]] ; then
-      symlinks+=("\"${logos:-logos}/${logo_srp}.png\" \"${servicename}.png\"")
+      #logo_paths["${servicename}.png"]="${logos:-logos}/${logo_srp}.png"
+      logo_names+=("${servicename}.png")
+      logo_paths+=("logos/${logo_srp}.png")
       logocollection+=("$logo_srp")
     fi
     if [[ "$style" == 'snp' && "$logo_snp" != '--------' ]] ; then
-      symlinks+=("\"${logos:-logos}/${logo_snp}.png\" \"${servicename}.png\"")
+      #logo_paths["${servicename}.png"]="${logos:-logos}/${logo_snp}.png"
+      logo_names+=("${servicename}.png")
+      logo_paths+=("logos/${logo_snp}.png")
       logocollection+=("$logo_snp")
     fi
-    unset -v 'logos'
   done
+
+  symlinks=("${!logo_paths[@]}")
 }
 
 ### Start
@@ -191,10 +191,14 @@ if [[ ! -d "${PICONS_DIR}/.git" ]] ; then
 else
   f_log INFO "Aktualisiere Picons in ${PICONS_DIR}…"
   cd "$PICONS_DIR" || exit 1
-  git pull &>> "$logfile"
-  last_logo_update="$(git log -1 --date=format:"%d.%m.%Y %T" --format="%ad")"
-  f_log INFO "Letztes Update der Logos: $last_logo_update"
-  cd "$SELF_PATH" || exit 1
+  if ! git pull &>> "$logfile" ; then
+    f_log ERROR 'Aktualisierung hat nicht funktioniert!'
+    exit 1
+  else
+    last_logo_update="$(git log -1 --date=format:"%d.%m.%Y %T" --format="%ad")"
+    f_log INFO "Letztes Update der Logos: $last_logo_update"
+    cd "$SELF_PATH" || exit 1
+  fi
 fi
 
 # Stil gültig?
@@ -227,7 +231,7 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     [[ "${channelsconf[i]:0:1}" == : ]] && { ((grp++)) ; continue ;}     # Kanalgruppe
     [[ "${channelsconf[i]}" =~ OBSOLETE ]] && { ((obs++)) ; continue ;}  # Als 'OBSOLETE' markierter Kanal
     [[ "${channelnames[i]%%;*}" == '.' ]] && { ((bl++)) ; continue ;}    # '.' als Kanalname
-    ((cnt++)) ; echo -ne "$msgINF Konvertiere Kanal #${cnt}"\\r
+    ((cnt++)) ; echo -ne "$msgINF Konvertiere Kanalname -> Service #${cnt}"\\r
     IFS=':' read -r -a vdrchannel <<< "${channelsconf[i]}"
 
     printf -v sid '%X' "${vdrchannel[9]}"
@@ -249,12 +253,12 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     esac
 
     unique_id="${sid}_${tid}_${nid}_${namespace}"
-    serviceref="1_0_${channeltype}_${unique_id}0000_0_0_0"
     serviceref_id="${unique_id}0000"
+    serviceref="1_0_${channeltype}_${serviceref_id}_0_0_0"
     IFS=';' read -r -a channelname <<< "${vdrchannel[0]}"
     IFS=';' read -r -a snpchannelname <<< "${channelnames[i]}"  # ASCII
-    vdr_channelname="${channelname[0]%,*}"     # Kanalname ohne Kurzname
-    vdr_channelname="${vdr_channelname//|/:}"  # | durch : ersetzen
+    vdr_channelname="${channelname[0]%,*}"       # Kanalname ohne Kurzname
+    vdr_channelname="${vdr_channelname//|/:}"    # | durch : ersetzen
 
     LC_ALL='C'  # Halbiert sie Zeit beim suchen im index
     #logo_srp=$(grep -i -m 1 "^$unique_id" <<< "$index" | sed -n -e 's/.*=//p')
@@ -280,9 +284,10 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     LC_ALL="$_LANG"  # Sparcheinstellungen zurückstellen
   done
   #sort -t $'\t' -k 2,2 "$tempfile" | sed -e 's/\t/^|/g' | column -t -s $'^' | sed -e 's/|/  |  /g' > "$file"
-  sort --field-separator=$'\t' --key=2,2 "$tempfile" | sed -e 's/\t/  |  /g' > "$file"
+  #sort --field-separator=$'\t' --key=2,2 "$tempfile" | sed -e 's/\t/  |  /g' > "$file"
+  sort --field-separator=$'\t' --key=2,2 "$tempfile" > "$file"
   rm "$tempfile"
-  echo -e '\n'
+  #echo -e '\n'
   f_log INFO "Serviceliste exportiert nach $file"
 else
   f_log ERROR "$CHANNELSCONF nicht gefunden!"
@@ -390,10 +395,27 @@ for logoname in "${logocollection[@]}" ; do
 done
 
 cd "$LOGODIR" || exit 1
-echo -e '\n'
+#echo -e '\n'
+
 f_log INFO 'Verlinke Kanallogos…'
-for link in "${symlinks[@]}" ; do
-  eval "ln --symbolic --force $link" 2>> "${LOGFILE:-/dev/null}"
+[[ ${#logo_names[@]} -eq ${#logo_paths[@]} ]] || f_log ERROR "Anzahl der Logos stimmt nicht überein!"
+# Logos verlinken
+for i in "${!logo_names[@]}"; do
+  logo_name="${logo_names[i]}"  # Name des Logos
+  logo_path="${logo_paths[i]}"  # Linkziel (Kanalname)
+
+  if [[ "$logo_name" =~ / ]] ; then  # Kanal mit / im Namen
+    ch_path="${logo_name%/*}"         # Pfad des Kanals
+    mkdir --parents "./${ch_path}" || f_log ERROR "Ordner ${LOGODIR}/${ch_path} konnte nicht erstellt werden!"
+    logo_path="../${logo_path}"  # Pfad zum Logo (../logos/...)
+  fi
+
+  if [[ -f "${logo_paths[i]}" ]] ; then  # Symlink erstellen
+    ln --symbolic --force "$logo_path" "$logo_name" 2>> "${LOGFILE:-/dev/null}" \
+      || f_log ERROR "Symlink für $logo_name konnte nicht erstellt werden!"
+  else
+    f_log WARN "Logo $logo_name nicht gefunden!"
+  fi
 done
 
 # Symlink/Logo History
@@ -406,8 +428,10 @@ if [[ -n "$LOGO_HIST" ]] ; then
   printf '%s\n' "${symlinks[@]}" | sort --unique > "$LOGO_HIST"  # Neue DB schreiben
 fi
 
-find "$LOGODIR" -xtype l -delete &>> "${LOGFILE:-/dev/null}"  # Alte (defekte) Symlinks löschen
-
+# Aufräumen
+{ find "$LOGODIR" -xtype l -delete        # Alte (defekte) Symlinks löschen
+  find "$LOGODIR" -type d -empty -delete  # Leere Verzeichnisse löschen
+} &>> "${LOGFILE:-/dev/null}"
 [[ -d "$temp" ]] && rm --recursive "$temp"
 
 f_log INFO "Erstellen von Logos (${style}) beendet!"
@@ -423,7 +447,7 @@ SCRIPT_TIMING[10]=$((SCRIPT_TIMING[2] - SCRIPT_TIMING[0]))  # Gesamt
 f_log "==> Skriptlaufzeit: $((SCRIPT_TIMING[10] / 60)) Minute(n) und $((SCRIPT_TIMING[10] % 60)) Sekunde(n)"
 
 if [[ -e "$LOGFILE" ]] ; then  # Log-Datei umbenennen, wenn zu groß
-  FILESIZE="$(stat --format=%s "$LOGFILE")"
+  FILESIZE="$(stat --format=%s "$LOGFILE" 2>/dev/null)"
   [[ $FILESIZE -gt $MAXLOGSIZE ]] && mv --force "$LOGFILE" "${LOGFILE}.old"
 fi
 
