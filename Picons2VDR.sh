@@ -231,9 +231,9 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     [[ "${channelsconf[i]:0:1}" == : ]] && { ((grp++)) ; continue ;}     # Kanalgruppe
     [[ "${channelsconf[i]}" =~ OBSOLETE ]] && { ((obs++)) ; continue ;}  # Als 'OBSOLETE' markierter Kanal
     [[ "${channelnames[i]%%;*}" == '.' ]] && { ((bl++)) ; continue ;}    # '.' als Kanalname
-    ((cnt++)) #; echo -ne "$msgINF Konvertiere Kanalname -> Service #${cnt}"\\r
+    ((cnt++)) ; echo -ne "$msgINF Konvertiere Kanalname -> Service #${cnt}"\\r
     # Replace echo with printf for better performance in progress display
-    printf '\r%s Konvertiere Kanalname -> Service #%d' "$msgINF" "$cnt"
+    #printf '\r%s Konvertiere Kanalname -> Service #%d' "$msgINF" "$cnt"
 
     IFS=':' read -r -a vdrchannel <<< "${channelsconf[i]}"
 
@@ -290,7 +290,7 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   #sort --field-separator=$'\t' --key=2,2 "$tempfile" | sed -e 's/\t/  |  /g' > "$file"
   sort --field-separator=$'\t' --key=2,2 "$tempfile" > "$file"
   rm "$tempfile"
-  #echo -e '\n'
+  echo -e '\n'
   f_log INFO "Serviceliste exportiert nach $file"
 else
   f_log ERROR "$CHANNELSCONF nicht gefunden!"
@@ -398,7 +398,7 @@ for logoname in "${logocollection[@]}" ; do
 done
 
 cd "$LOGODIR" || exit 1
-#echo -e '\n'
+echo -e '\n'
 
 f_log INFO 'Verlinke Kanallogos…'
 [[ ${#logo_names[@]} -eq ${#logo_paths[@]} ]] || f_log ERROR "Anzahl der Logos stimmt nicht überein!"
