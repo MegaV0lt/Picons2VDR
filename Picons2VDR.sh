@@ -231,9 +231,14 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     [[ "${channelsconf[i]:0:1}" == : ]] && { ((grp++)) ; continue ;}     # Kanalgruppe
     [[ "${channelsconf[i]}" =~ OBSOLETE ]] && { ((obs++)) ; continue ;}  # Als 'OBSOLETE' markierter Kanal
     [[ "${channelnames[i]%%;*}" == '.' ]] && { ((bl++)) ; continue ;}    # '.' als Kanalname
-    ((cnt++)) ; echo -ne "$msgINF Konvertiere Kanalname -> Service #${cnt}"\\r
-    # Replace echo with printf for better performance in progress display
-    #printf '\r%s Konvertiere Kanalname -> Service #%d' "$msgINF" "$cnt"
+    if [[ -t 1 ]] ; then
+      ((cnt++))
+      if ((cnt % 50 == 0)) ; then
+        echo -ne "$msgINF Konvertiere Kanalname -> Service #${cnt}"\\r
+        # Replace echo with printf for better performance in progress display
+        #printf '\r%s Konvertiere Kanalname -> Service #%d' "$msgINF" "$cnt"
+      fi
+    fi
 
     IFS=':' read -r -a vdrchannel <<< "${channelsconf[i]}"
 
@@ -263,7 +268,7 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     vdr_channelname="${channelname[0]%,*}"       # Kanalname ohne Kurzname
     vdr_channelname="${vdr_channelname//|/:}"    # | durch : ersetzen
 
-    LC_ALL='C'  # Halbiert sie Zeit beim suchen im index
+    LC_ALL='C'  # Halbiert die Zeit beim suchen im index
     #logo_srp=$(grep -i -m 1 "^$unique_id" <<< "$index" | sed -n -e 's/.*=//p')
     re="[[:space:]]${unique_id}([^[:space:]]*)"
     [[ "$index" =~ $re ]] && { logo_srp="${BASH_REMATCH[0]#*=}" ;} || logo_srp='--------'
@@ -286,11 +291,12 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     fi
     LC_ALL="$_LANG"  # Sparcheinstellungen zurückstellen
   done
+
   #sort -t $'\t' -k 2,2 "$tempfile" | sed -e 's/\t/^|/g' | column -t -s $'^' | sed -e 's/|/  |  /g' > "$file"
   #sort --field-separator=$'\t' --key=2,2 "$tempfile" | sed -e 's/\t/  |  /g' > "$file"
   sort --field-separator=$'\t' --key=2,2 "$tempfile" > "$file"
   rm "$tempfile"
-  echo -e '\n'
+  [[ -t 1 ]] && echo -e '\n'
   f_log INFO "Serviceliste exportiert nach $file"
 else
   f_log ERROR "$CHANNELSCONF nicht gefunden!"
