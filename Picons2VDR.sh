@@ -172,7 +172,7 @@ done
 # Benötigte Programme suchen
 commands=(bc column find iconv ln mkdir mv printf readlink rm sed sort)
 for cmd in "${commands[@]}" ; do
-  command -v "$cmd" &>/dev/null || missingcommands+=("$cmd")
+  type "$cmd" &>/dev/null || missingcommands+=("$cmd")
 done
 if [[ -n "${missingcommands[*]}" ]] ; then
   f_log ERROR "Fehlende Datei(en): ${missingcommands[*]}"
@@ -310,16 +310,16 @@ f_log INFO "Log-Datei: $logfile"
 
 if command -v pngquant &>/dev/null ; then
   pngquant='pngquant'
-  f_log INFO 'Bildkomprimierung aktiviert!'
+  f_log INFO 'Bildkomprimierung (pngquant) aktiviert!'
 else
   pngquant='cat'
   f_log WARN 'Bildkomprimierung deaktiviert! "pngquant" installieren!'
 fi
 
 if command -v convert &>/dev/null ; then
-  f_log INFO 'ImageMagick gefunden!'
+  f_log INFO 'ImageMagick (convert) gefunden!'
 else
-  f_log ERROR 'ImageMagick nicht gefunden! "ImageMagick" installieren!'
+  f_log ERROR 'ImageMagick (convert) nicht gefunden! "ImageMagick" installieren!'
   exit 1
 fi
 
