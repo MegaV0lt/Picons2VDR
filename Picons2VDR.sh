@@ -70,7 +70,7 @@ f_create_symlinks() {  # Symlinks erzeugen und Logos in Array sammeln
   local logo_srp logo_snp link_srp link_snp
   local -a lnk_srp lnk_snp
 
-  mapfile -t servicelist < "${LOCATION}/build-output/servicelist-vdr-${STYLE}.txt"  # Liste in Array einlesen
+  mapfile -t servicelist < "${BUILD_OUTPUT}/servicelist-vdr-${STYLE}.txt"  # Liste in Array einlesen
   for line in "${servicelist[@]}" ; do
     IFS=$'\t' read -r -a line_data <<< "$line"
     # IFS='|' read -r -a line_data <<< "$line"
@@ -162,7 +162,9 @@ f_log INFO "$CONFLOADED Konfiguration: ${CONFIG}"
 [[ "$AUTO_UPDATE" == 'true' ]] && f_self_update "$@"
 
 # Pfade festlegen
-LOCATION="${SELF_PATH}/${PICONS_DIR}"  # Pfad vom GIT
+LOCATION="${SELF_PATH}/${PICONS_DIR}"    # Pfad vom GIT
+BUILD_SOURCE="${LOCATION}/build-source"  # Quelldateien
+BUILD_OUTPUT="${LOCATION}/build-output"  # Ausgabeordner
 logfile=$(mktemp --suffix=.servicelist.log)
 temp=$(mktemp -d --suffix=.picons)
 f_log INFO "Log-Datei: $logfile"
@@ -214,9 +216,9 @@ if [[ "${STYLE,,}" != 'srp' && "${STYLE,,}" != 'snp' ]] ; then
 fi
 
 # .index einlesen
-#mapfile -t index < "${LOCATION}/build-source/${STYLE}.index"
-printf -v index '%b\n' ''  # Damit auch das erste Element gefunden wird (=~)
-index+=$(<"${LOCATION}/build-source/${STYLE}.index")
+#mapfile -t INDEX < "${BUILD_SOURCE}/${STYLE}.index"
+printf -v INDEX '%b\n' ''  # Damit auch das erste Element gefunden wird (=~)
+INDEX+=$(<"${BUILD_SOURCE}/${STYLE}.index")
 
 ### VDR Serviceliste erzeugen
 if [[ -f "$CHANNELSCONF" ]] ; then
@@ -226,13 +228,12 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   f_log INFO "Encoding der Kanalliste: ${ENCODING[1]:-unbekannt}"
   # Kanalliste in ASCII umwandeln
   mapfile -t CHANNELNAMES < <(LC_CTYPE='de_DE.UTF-8' iconv -f "${ENCODING[1]:-UTF-8}" -t ASCII//TRANSLIT -c < "$CHANNELSCONF" 2>> "$logfile")
-  CHANNELNAMES=("${CHANNELNAMES[@]%%:*}")           # Nur den Kanalnamen (Mit Provider und Kurzname)
-  mapfile -t VDR_CHANNELSCONF < "$CHANNELSCONF"         # Kanalliste in Array einlesen
+  CHANNELNAMES=("${CHANNELNAMES[@]%%:*}")        # Nur den Kanalnamen (Mit Provider und Kurzname)
+  mapfile -t VDR_CHANNELSCONF < "$CHANNELSCONF"  # Kanalliste in Array einlesen
   [[ "${#CHANNELNAMES[@]}" -ne "${#VDR_CHANNELSCONF[@]}" ]] && \
     { f_log ERROR 'Kanalliste und Kanalnamen unterschiedlich!' ; exit 1 ;}
 
   for i in "${!CHANNELNAMES[@]}" ; do
-    #[[ "${VDR_CHANNELSCONF[i]:0:1}" == : ]] && { ((grp++)) ; continue ;}     # Kanalgruppe
     [[ -z "${CHANNELNAMES[i]}" ]] && { ((grp++)) ; continue ;}           # Kanalgruppe
     [[ "${CHANNELNAMES[i]}" =~ OBSOLETE ]] && { ((obs++)) ; continue ;}  # Als 'OBSOLETE' markierter Kanal
     [[ "${CHANNELNAMES[i]%%;*}" == '.' ]] && { ((bl++)) ; continue ;}    # '.' als Kanalname
@@ -268,25 +269,25 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     UNIQUE_ID="${SID}_${TID}_${NID}_${NAMESPACE}"
     SERVICEREF_ID="${UNIQUE_ID}0000"
     SERVICEREF="1_0_${CHANNELTYPE}_${SERVICEREF_ID}_0_0_0"
-    IFS=';' read -r -a CHANNELNAME <<< "${VDRCHANNEL[0]}"
-    : "${CHANNELNAME[0]%,*}"       # Kanalname ohne Kurzname
-    VDR_CHANNELNAME="${_//|/:}"    # | durch : ersetzen
+    IFS=';' read -r -a REPLY <<< "${VDRCHANNEL[0]}"
+    : "${REPLY[0]%,*}"           # Kanalname ohne Kurzname
+    VDR_CHANNELNAME="${_//|/:}"  # | durch : ersetzen
 
     LC_ALL='C'  # Halbiert die Zeit beim suchen im index
-    #LOGO_SRP=$(grep -i -m 1 "^$UNIQUE_ID" <<< "$index" | sed -n -e 's/.*=//p')
+    #LOGO_SRP=$(grep -i -m 1 "^$UNIQUE_ID" <<< "$INDEX" | sed -n -e 's/.*=//p')
     re="[[:space:]]${UNIQUE_ID}([^[:space:]]*)"
-    [[ "$index" =~ $re ]] && { LOGO_SRP="${BASH_REMATCH[0]#*=}" ;} || LOGO_SRP="$NOT_SET"
+    [[ "$INDEX" =~ $re ]] && { LOGO_SRP="${BASH_REMATCH[0]#*=}" ;} || LOGO_SRP="$NOT_SET"
 
     if [[ "$STYLE" == 'snp' ]] ; then
-      IFS=';' read -r -a SNPCHANNELNAME <<< "${CHANNELNAMES[i]}"  # ASCII
+      IFS=';' read -r -a REPLY <<< "${CHANNELNAMES[i]}"  # ASCII
       # sed -e 's/^[ \t]*//' -e 's/|//g' -e 's/^//g')
-      : "${SNPCHANNELNAME[0]%,*}"                               # Ohne Kurznamen
+      : "${REPLY[0]%,*}"                                        # Ohne Kurznamen
       : "${_//\&/and}" ; : "${_//'*'/star}" ; : "${_//+/plus}"  # Zeichen ersetzen (&,*,+)
       : "${_,,}" ; SNPNAME="${_//[^a-z0-9]}"                    # In Kleinbuchstaben und nur a-z0-9
       if [[ -n "$SNPNAME" ]] ; then
-        #LOGO_SNP=$(grep -i -m 1 "^$SNPNAME=" <<< "$index" | sed -n -e 's/.*=//p')
+        #LOGO_SNP=$(grep -i -m 1 "^$SNPNAME=" <<< "$INDEX" | sed -n -e 's/.*=//p')
         re="[[:space:]]${SNPNAME}=([^[:space:]]*)"
-        [[ "$index" =~ $re ]] && { LOGO_SNP="${BASH_REMATCH[1]}" ;} || LOGO_SNP="$NOT_SET"
+        [[ "$INDEX" =~ $re ]] && { LOGO_SNP="${BASH_REMATCH[1]}" ;} || LOGO_SNP="$NOT_SET"
       else
         SNPNAME="$NOT_SET"
       fi
@@ -297,7 +298,7 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     LC_ALL="$_LANG"  # Sparcheinstellungen zurückstellen
   done
 
-  SERVICE_FILE="${LOCATION}/build-output/servicelist-vdr-${STYLE}.txt"
+  SERVICE_FILE="${BUILD_OUTPUT}/servicelist-vdr-${STYLE}.txt"
   #sort -t $'\t' -k 2,2 "$TEMPFILE" | sed -e 's/\t/^|/g' | column -t -s $'^' | sed -e 's/|/  |  /g' > "$SERVICE_FILE"
   #sort --field-separator=$'\t' --key=2,2 "$TEMPFILE" | sed -e 's/\t/  |  /g' > "$SERVICE_FILE"
   sort --field-separator=$'\t' --key=2,2 "$TEMPFILE" > "$SERVICE_FILE"
@@ -342,7 +343,7 @@ else
 fi
 
 # Prüfen ob Serviceliste existiert
-if [[ ! -f "${LOCATION}/build-output/servicelist-vdr-${STYLE}.txt" ]] ; then
+if [[ ! -f "${BUILD_OUTPUT}/servicelist-vdr-${STYLE}.txt" ]] ; then
   f_log ERROR "Keine $STYLE Serviceliste gefunden!"
   exit 1
 fi
@@ -350,10 +351,10 @@ fi
 # Einfache Prüfung der Quellen
 if [[ -t 1 ]] ; then
   f_log INFO 'Überprüfe snp/srp Index…'
-  "${LOCATION}/resources/tools/check-index.sh" "${LOCATION}/build-source" srp
-  "${LOCATION}/resources/tools/check-index.sh" "${LOCATION}/build-source" snp
+  "${LOCATION}/resources/tools/check-index.sh" "$BUILD_SOURCE" srp
+  "${LOCATION}/resources/tools/check-index.sh" "$BUILD_SOURCE" snp
   f_log INFO 'Überprüfe logos…'
-  "${LOCATION}/resources/tools/check-logos.sh" "${LOCATION}/build-source/logos"
+  "${LOCATION}/resources/tools/check-logos.sh" "${BUILD_SOURCE}/logos"
 fi
 
 # Array mit Symlinks erstellen und Logos sammeln
@@ -375,7 +376,7 @@ for logoname in "${LOGO_COLLECTION[@]}" ; do
   ((currentlogo++))
   [[ -t 1 ]] && echo -ne "$msgINF Konvertiere Logo: ${currentlogo}/${LOGO_COUNT}"\\r
 
-  if [[ -f "${LOCATION}/build-source/logos/${logoname}.${LOGO_TYPE}.png" || -f "${LOCATION}/build-source/logos/${logoname}.${LOGO_TYPE}.svg" ]] ; then
+  if [[ -f "${BUILD_SOURCE}/logos/${logoname}.${LOGO_TYPE}.png" || -f "${BUILD_SOURCE}/logos/${logoname}.${LOGO_TYPE}.svg" ]] ; then
     logotype="$LOGO_TYPE"
   else
     logotype='default'
@@ -383,27 +384,27 @@ for logoname in "${LOGO_COLLECTION[@]}" ; do
 
   echo "--> ${logoname}.${logotype}" >> "$logfile"
 
-  if [[ -f "${LOCATION}/build-source/logos/${logoname}.${logotype}.svg" ]] ; then
+  if [[ -f "${BUILD_SOURCE}/logos/${logoname}.${logotype}.svg" ]] ; then
     ((svg++))
-    [[ "${LOGODIR}/logos/${logoname}.png" -nt "${LOCATION}/build-source/logos/${logoname}.${logotype}.svg" ]] && continue  # Nur erstellen wenn neuer
+    [[ "${LOGODIR}/logos/${logoname}.png" -nt "${BUILD_SOURCE}/logos/${logoname}.${logotype}.svg" ]] && continue  # Nur erstellen wenn neuer
     logo="${temp}/cache/${logoname}.${logotype}.png"
     if [[ ! -f "$logo" ]] ; then
-      "${svgconverter[@]}" "${logo}" "${LOCATION}/build-source/logos/${logoname}.${logotype}.svg" &>> "$logfile"
+      "${svgconverter[@]}" "${logo}" "${BUILD_SOURCE}/logos/${logoname}.${logotype}.svg" &>> "$logfile"
     fi
   else
     ((png++))
-    logo="${LOCATION}/build-source/logos/${logoname}.${logotype}.png"
+    logo="${BUILD_SOURCE}/logos/${logoname}.${logotype}.png"
     [[ "${LOGODIR}/logos/${logoname}.png" -nt "$logo" ]] && continue  # Nur erstellen wenn neuer
   fi
 
   # Hintergrund vorhanden?
-  if [[ ! -f "${LOCATION}/build-source/backgrounds/${RESOLUTION}/${BACKGROUND}.png" ]] ; then
-    f_log WARN "Hintergrund fehlt! (${LOCATION}/build-source/backgrounds/${RESOLUTION}/${BACKGROUND}.png)"
+  if [[ ! -f "${BUILD_SOURCE}/backgrounds/${RESOLUTION}/${BACKGROUND}.png" ]] ; then
+    f_log WARN "Hintergrund fehlt! (${BUILD_SOURCE}/backgrounds/${RESOLUTION}/${BACKGROUND}.png)"
   fi
 
-  # Erstelle Logo mit Hintergrund
-  convert "${LOCATION}/build-source/backgrounds/${RESOLUTION}/${BACKGROUND}.png" \
-    \( "$logo" -BACKGROUND none -bordercolor none -border 100 -trim -border 1% -RESIZE "$RESIZE" -gravity center -extent "$RESOLUTION" +repage \) \
+  # Erstelle optimiertes Logo mit Hintergrund
+  convert "${BUILD_SOURCE}/backgrounds/${RESOLUTION}/${BACKGROUND}.png" \
+    \( "$logo" -background none -bordercolor none -border 100 -trim -border 1% -resize "$RESIZE" -gravity center -extent "$RESOLUTION" +repage \) \
     -layers merge - 2>> "$logfile" \
     | "$pngquant" - 2>> "$logfile" > "${LOGODIR}/logos/${logoname}.png"
   ((N_LOGO++))
@@ -435,10 +436,10 @@ done
 
 # Symlink/Logo History
 if [[ -n "$LOGO_HIST" ]] ; then
-  [[ ! "$LOGO_HIST" =~ / ]] && LOGO_HIST="${LOCATION}/build-output/${LOGO_HIST}"
+  [[ ! "$LOGO_HIST" =~ / ]] && LOGO_HIST="${BUILD_OUTPUT}/${LOGO_HIST}"
   if [[ -f "$LOGO_HIST" ]] ; then
-    mapfile -t logo_hist < "$LOGO_HIST"  # Vorherige Daten einlesen
-    SYMLINKS+=("${logo_hist[@]}")        # Aktuelle hinzufügen
+    mapfile -t < "$LOGO_HIST"    # Vorherige Daten einlesen
+    SYMLINKS+=("${MAPFILE[@]}")  # Aktuelle hinzufügen
   fi
   printf '%s\n' "${SYMLINKS[@]}" | sort --unique > "$LOGO_HIST"  # Neue DB schreiben
 fi
