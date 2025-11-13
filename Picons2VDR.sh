@@ -67,52 +67,46 @@ f_self_update() {  # Automatisches Update
 
 f_create_symlinks() {  # Symlinks erzeugen und Logos in Array sammeln
   local channel servicename
-  local logo_srp logo_snp link_srp link_snp
+  local logo_srp logo_snp
   local -a lnk_srp lnk_snp
 
-  mapfile -t servicelist < "${BUILD_OUTPUT}/servicelist-vdr-${STYLE}.txt"  # Liste in Array einlesen
-  for line in "${servicelist[@]}" ; do
+  # 1_0_19_151A_455_1_C00000_0_0_0  DMAX HD  151A_455_1_C00000=dmaxhd-wispelutri  dmaxhd=dmaxhd
+  mapfile -t < "${BUILD_OUTPUT}/servicelist-vdr-${STYLE}.txt"  # Liste in Array einlesen
+  for line in "${MAPFILE[@]}" ; do
     IFS=$'\t' read -r -a line_data <<< "$line"
-    # IFS='|' read -r -a line_data <<< "$line"
 
-    channel=$(f_trim "${line_data[1]//:/|}")
+    channel=$(f_trim "${line_data[1]//:/|}")     # ':' durch '|' ersetzen
     case "${TOLOWER^^}" in
       'A-Z') servicename="${channel,,[A-Z]}" ;;  # In Kleinbuchstaben (Außer Umlaute)
       'FALSE') servicename="$channel" ;;         # Nicht umwandeln
       *) servicename="${channel,,}" ;;           # Alles in kleinbuchstaben
     esac
 
-    link_srp=$(f_trim "${line_data[2]}")
-    link_snp=$(f_trim "${line_data[3]}")
+    IFS='=' read -r -a lnk_srp <<< "$(f_trim "${line_data[2]}")"
+    logo_srp="${lnk_srp[1]//${NOT_SET}}"  # Platzhalter entfernen
+    IFS='=' read -r -a lnk_snp <<< "$(f_trim "${line_data[3]}")"
+    logo_snp="${lnk_snp[1]//${NOT_SET}}"  # Platzhalter entfernen
 
-    IFS='=' read -r -a lnk_srp <<< "$link_srp"
-    logo_srp="${lnk_srp[1]}"
-    IFS='=' read -r -a lnk_snp <<< "$link_snp"
-    logo_snp="${lnk_snp[1]}"
-
-    if [[ "$logo_srp" == "$NOT_SET" && "$logo_snp" == "$NOT_SET" ]] ; then
+    if [[ -z "$logo_srp" && -z "$logo_snp" ]] ; then  # Kein Logo
       f_log WARN "!=> Kein Logo für $channel (SRP: ${lnk_srp[0]} | SNP: ${lnk_snp[0]}) gefunden!"
       ((nologo++)) ; continue
     fi
 
-    if [[ "$logo_srp" != "$NOT_SET" && "$logo_snp" != "$NOT_SET" && "$logo_srp" != "$logo_snp" ]] ; then  # Unterschiedliche Logos
+    if [[ -n "$logo_srp" && -n "$logo_snp" && "$logo_srp" != "$logo_snp" ]] ; then  # Unterschiedliche Logos
       f_log WARN "?=> Unterschiedliche Logos für $channel (SRP: $logo_srp | SNP: ${logo_snp}) gefunden!"
       if [[ "${PREFERED_LOGO:=snp}" == 'srp' ]] ; then  # Bevorzugtes Logo verwenden
-        logo_snp="$NOT_SET"
+        unset -v 'logo_snp'
       else
-        logo_srp="$NOT_SET"
+        unset -v 'logo_srp'
       fi
       ((difflogo++))
     fi
 
-    if [[ "$logo_srp" != "$NOT_SET" ]] ; then
-      #LOGO_PATHS["${servicename}.png"]="${logos:-logos}/${LOGO_SRP}.png"
+    if [[ -n "$logo_srp" ]] ; then
       LOGO_NAMES+=("${servicename}.png")
       LOGO_PATHS+=("logos/${logo_srp}.png")
       LOGO_COLLECTION+=("$logo_srp")
-    fi
-    if [[ "$STYLE" == 'snp' && "$logo_snp" != "$NOT_SET" ]] ; then
-      #LOGO_PATHS["${servicename}.png"]="${logos:-logos}/${LOGO_SNP}.png"
+    elif [[ -n "$logo_snp" ]] ; then
       LOGO_NAMES+=("${servicename}.png")
       LOGO_PATHS+=("logos/${logo_snp}.png")
       LOGO_COLLECTION+=("$logo_snp")
