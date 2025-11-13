@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=251111  # Version des Skripts
+VERSION=251113  # Version des Skripts
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -66,8 +66,7 @@ f_self_update() {  # Automatisches Update
 }
 
 f_create_symlinks() {  # Symlinks erzeugen und Logos in Array sammeln
-  local channel servicename
-  local logo_srp logo_snp
+  local channel logo_srp logo_snp servicename
   local -a lnk_srp lnk_snp
 
   # 1_0_19_151A_455_1_C00000_0_0_0  DMAX HD  151A_455_1_C00000=dmaxhd-wispelutri  dmaxhd=dmaxhd
@@ -85,7 +84,9 @@ f_create_symlinks() {  # Symlinks erzeugen und Logos in Array sammeln
     IFS='=' read -r -a lnk_srp <<< "$(f_trim "${line_data[2]}")"
     logo_srp="${lnk_srp[1]//${NOT_SET}}"  # Platzhalter entfernen
     IFS='=' read -r -a lnk_snp <<< "$(f_trim "${line_data[3]}")"
-    logo_snp="${lnk_snp[1]//${NOT_SET}}"  # Platzhalter entfernen
+    if [[ -n "${lnk_snp[0]//${NOT_SET}}" ]] ; then  # Nur wenn Name konvertiert werden konnte
+      logo_snp="${lnk_snp[1]//${NOT_SET}}"  # Platzhalter entfernen
+    fi
 
     if [[ -z "$logo_srp" && -z "$logo_snp" ]] ; then  # Kein Logo
       f_log WARN "!=> Kein Logo für $channel (SRP: ${lnk_srp[0]} | SNP: ${lnk_snp[0]}) gefunden!"
@@ -112,8 +113,6 @@ f_create_symlinks() {  # Symlinks erzeugen und Logos in Array sammeln
       LOGO_COLLECTION+=("$logo_snp")
     fi
   done
-
-  SYMLINKS=("${!LOGO_PATHS[@]}")
 }
 
 ### Start
@@ -221,8 +220,14 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   read -r -a ENCODING < <(encguess -u "$CHANNELSCONF")
   f_log INFO "Encoding der Kanalliste: ${ENCODING[1]:-unbekannt}"
   # Kanalliste in ASCII umwandeln
-  mapfile -t CHANNELNAMES < <(LC_CTYPE='de_DE.UTF-8' iconv -f "${ENCODING[1]:-UTF-8}" -t ASCII//TRANSLIT -c < "$CHANNELSCONF" 2>> "$logfile")
-  CHANNELNAMES=("${CHANNELNAMES[@]%%:*}")        # Nur den Kanalnamen (Mit Provider und Kurzname)
+  #* Funktioniert nicht bei Buchstaben wie ΑαΒβΓγΔδ (Griechisch)
+  #mapfile -t CHANNELNAMES < <(LC_CTYPE='de_DE.UTF-8' iconv -f "${ENCODING[1]:-UTF-8}" -t ASCII//TRANSLIT -c < "$CHANNELSCONF" 2>> "$logfile")
+  mapfile -t CHANNELNAMES < <(iconv -f "${ENCODING[1]:-UTF-8}" -t ASCII//TRANSLIT -c < "$CHANNELSCONF" 2>> "$logfile")
+  for i in "${!CHANNELNAMES[@]}"; do
+    CHANNELNAMES[i]=${CHANNELNAMES[i]%%:*}  # Kanalname mit Kurzname und Provider
+    CHANNELNAMES[i]=${CHANNELNAMES[i]%%;*}  # Kanalname ohne Provider
+    CHANNELNAMES[i]=${CHANNELNAMES[i]%%,*}  # Kanalname ohne Kurzname
+  done
   mapfile -t VDR_CHANNELSCONF < "$CHANNELSCONF"  # Kanalliste in Array einlesen
   [[ "${#CHANNELNAMES[@]}" -ne "${#VDR_CHANNELSCONF[@]}" ]] && \
     { f_log ERROR 'Kanalliste und Kanalnamen unterschiedlich!' ; exit 1 ;}
@@ -230,13 +235,11 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   for i in "${!CHANNELNAMES[@]}" ; do
     [[ -z "${CHANNELNAMES[i]}" ]] && { ((grp++)) ; continue ;}           # Kanalgruppe
     [[ "${CHANNELNAMES[i]}" =~ OBSOLETE ]] && { ((obs++)) ; continue ;}  # Als 'OBSOLETE' markierter Kanal
-    [[ "${CHANNELNAMES[i]%%;*}" == '.' ]] && { ((bl++)) ; continue ;}    # '.' als Kanalname
+    [[ "${CHANNELNAMES[i]}" == '.' ]] && { ((bl++)) ; continue ;}        # '.' als Kanalname
     if [[ -t 1 ]] ; then
       ((cnt++))
       if ((cnt % 10 == 0)) ; then
         echo -ne "$msgINF Konvertiere Kanalname -> Service #${cnt}"\\r
-        # Replace echo with printf for better performance in progress display
-        #printf '\r%s Konvertiere Kanalname -> Service #%d' "$msgINF" "$cnt"
       fi
     fi
 
@@ -253,11 +256,13 @@ if [[ -f "$CHANNELSCONF" ]] ; then
             printf -v NAMESPACE '%X' "${NAMESPACE%.*}" ;;
        'T') NAMESPACE='EEEE' ;;
        'C') NAMESPACE='FFFF' ;;
+         *) f_log ERROR "Unbekannter Namespace: ${VDRCHANNEL[3]} (${VDR_CHANNELSCONF[i]})" ; continue;;
     esac
     case ${VDRCHANNEL[5]} in
         '0') CHANNELTYPE='2' ;;
       *'=2') CHANNELTYPE='1' ;;
      *'=27') CHANNELTYPE='19' ;;
+         *) f_log ERROR "Unbekannter Channeltype: ${VDRCHANNEL[5]} (${VDR_CHANNELSCONF[i]})" ; continue;;
     esac
 
     UNIQUE_ID="${SID}_${TID}_${NID}_${NAMESPACE}"
@@ -273,11 +278,10 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     [[ "$INDEX" =~ $re ]] && { LOGO_SRP="${BASH_REMATCH[0]#*=}" ;} || LOGO_SRP="$NOT_SET"
 
     if [[ "$STYLE" == 'snp' ]] ; then
-      IFS=';' read -r -a REPLY <<< "${CHANNELNAMES[i]}"  # ASCII
+      #IFS=';' read -r -a REPLY <<< "${CHANNELNAMES[i]}"  # ASCII
       # sed -e 's/^[ \t]*//' -e 's/|//g' -e 's/^//g')
-      : "${REPLY[0]%,*}"                                        # Ohne Kurznamen
-      : "${_//\&/and}" ; : "${_//'*'/star}" ; : "${_//+/plus}"  # Zeichen ersetzen (&,*,+)
-      : "${_,,}" ; SNPNAME="${_//[^a-z0-9]}"                    # In Kleinbuchstaben und nur a-z0-9
+      : "${CHANNELNAMES[i]//\&/and}" ; : "${_//'*'/star}" ; : "${_//+/plus}"  # Zeichen ersetzen (&,*,+)
+      : "${_,,}" ; SNPNAME="${_//[^a-z0-9]}"                        # In Kleinbuchstaben und nur a-z0-9
       if [[ -n "$SNPNAME" ]] ; then
         #LOGO_SNP=$(grep -i -m 1 "^$SNPNAME=" <<< "$INDEX" | sed -n -e 's/.*=//p')
         re="[[:space:]]${SNPNAME}=([^[:space:]]*)"
@@ -285,11 +289,12 @@ if [[ -f "$CHANNELSCONF" ]] ; then
       else
         SNPNAME="$NOT_SET"
       fi
+      LC_ALL="$_LANG"  # Sparcheinstellungen zurückstellen
       echo -e "${SERVICEREF}\t${VDR_CHANNELNAME}\t${SERVICEREF_ID}=${LOGO_SRP}\t${SNPNAME}=${LOGO_SNP}" >> "$TEMPFILE"
     else
+      LC_ALL="$_LANG"  # Sparcheinstellungen zurückstellen
       echo -e "${SERVICEREF}\t${VDR_CHANNELNAME}\t${SERVICEREF_ID}=${LOGO_SRP}" >> "$TEMPFILE"
     fi
-    LC_ALL="$_LANG"  # Sparcheinstellungen zurückstellen
   done
 
   SERVICE_FILE="${BUILD_OUTPUT}/servicelist-vdr-${STYLE}.txt"
@@ -353,7 +358,7 @@ fi
 
 # Array mit Symlinks erstellen und Logos sammeln
 f_log INFO 'Erzeuge Symlinks und Logosammlung…'
-f_create_symlinks  # Array's 'SYMLINKS' und 'LOGO_COLLECTION' erstellen
+f_create_symlinks  # Array's 'LOGO_PATHS' und 'LOGO_COLLECTION' erstellen
 
 # Konvertierung der Logos
 LOGO_COUNT="${#LOGO_COLLECTION[@]}"
@@ -415,7 +420,7 @@ for i in "${!LOGO_NAMES[@]}"; do
   logo_path="${LOGO_PATHS[i]}"  # Linkziel (Kanalname)
 
   if [[ "$logo_name" =~ / ]] ; then  # Kanal mit / im Namen
-    ch_path="${logo_name%/*}"         # Pfad des Kanals
+    ch_path="${logo_name%/*}"        # Pfad des Kanals
     mkdir --parents "./${ch_path}" || f_log ERROR "Ordner ${LOGODIR}/${ch_path} konnte nicht erstellt werden!"
     logo_path="../${logo_path}"  # Pfad zum Logo (../logos/...)
   fi
@@ -432,15 +437,15 @@ done
 if [[ -n "$LOGO_HIST" ]] ; then
   [[ ! "$LOGO_HIST" =~ / ]] && LOGO_HIST="${BUILD_OUTPUT}/${LOGO_HIST}"
   if [[ -f "$LOGO_HIST" ]] ; then
-    mapfile -t < "$LOGO_HIST"    # Vorherige Daten einlesen
-    SYMLINKS+=("${MAPFILE[@]}")  # Aktuelle hinzufügen
+    mapfile -t < "$LOGO_HIST"      # Vorherige Daten einlesen
+    LOGO_PATHS+=("${MAPFILE[@]}")  # Aktuelle hinzufügen
   fi
-  printf '%s\n' "${SYMLINKS[@]}" | sort --unique > "$LOGO_HIST"  # Neue DB schreiben
+  printf '%s\n' "${LOGO_PATHS[@]}" | sort --unique > "$LOGO_HIST"  # Neue DB schreiben
 fi
 
 # Aufräumen
 if [[ -d "$LOGODIR" && "$LOGODIR" != "/" ]] ; then
-  { find "$LOGODIR" -xtype l -delete        # Alte (defekte) Symlinks löschen
+  { find "$LOGODIR" -xtype l -delete             # Alte (defekte) Symlinks löschen
     find "$LOGODIR" -LOGO_TYPE d -empty -delete  # Leere Verzeichnisse löschen
   } &>> "${LOGFILE:-/dev/null}"
 fi
