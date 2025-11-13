@@ -125,7 +125,7 @@ while getopts ":c:" opt ; do
        if [[ -f "$CONFIG" ]] ; then  # Konfig wurde angegeben und existiert
          source "$CONFIG" ; CONFLOADED='Angegebene' ; break
        else
-         f_log ERROR "Die angegebene Konfigurationsdatei fehlt! (\"${CONFIG}\")"
+         f_log ERR "Die angegebene Konfigurationsdatei fehlt! (\"${CONFIG}\")"
          exit 1
        fi ;;
     ?) ;;
@@ -144,7 +144,7 @@ if [[ -z "$CONFLOADED" ]] ; then  # Konfiguration wurde noch nicht geladen
     fi
   done
   if [[ -z "$CONFLOADED" ]] ; then  # Konfiguration wurde nicht gefunden
-    f_log ERROR "Keine Konfigurationsdatei gefunden! (\"${CONFIG_DIRS[*]}\")"
+    f_log ERR "Keine Konfigurationsdatei gefunden! (\"${CONFIG_DIRS[*]}\")"
     exit 1
   fi
 fi
@@ -164,7 +164,7 @@ f_log INFO "Log-Datei: $logfile"
 
 # Benötigte Variablen prüfen
 for var in CHANNELSCONF LOGODIR ; do
-  [[ -z "${!var}" ]] && { f_log ERROR "Variable $var ist nicht gesetzt!" ; exit 1 ;}
+  [[ -z "${!var}" ]] && { f_log ERR "Variable $var ist nicht gesetzt!" ; exit 1 ;}
 done
 
 # Benötigte Programme suchen
@@ -173,7 +173,7 @@ for cmd in "${COMMANDS[@]}" ; do
   type "$cmd" &>/dev/null || MISSING_COMMANDS+=("$cmd")
 done
 if [[ -n "${MISSING_COMMANDS[*]}" ]] ; then
-  f_log ERROR "Fehlende Datei(en): ${MISSING_COMMANDS[*]}"
+  f_log ERR "Fehlende Datei(en): ${MISSING_COMMANDS[*]}"
   exit 1
 fi
 
@@ -187,12 +187,12 @@ if [[ ! -d "${PICONS_DIR}/.git" ]] ; then
     sleep 5
   fi
   git clone --depth 1 "$PICONS_GIT" "$PICONS_DIR" \
-    || { f_log ERROR 'Klonen hat nicht funktioniert!' ; exit 1 ;}
+    || { f_log ERR 'Klonen hat nicht funktioniert!' ; exit 1 ;}
 else
   f_log INFO "Aktualisiere Picons in ${PICONS_DIR}…"
   cd "$PICONS_DIR" || exit 1
   if ! git pull &>> "$logfile" ; then
-    f_log ERROR 'Aktualisierung hat nicht funktioniert!'
+    f_log ERR 'Aktualisierung hat nicht funktioniert!'
     exit 1
   else
     last_logo_update="$(git log -1 --date=format:"%d.%m.%Y %T" --format="%ad")"
@@ -204,7 +204,7 @@ fi
 # Stil gültig?
 STYLE="${1:-snp}"  # Vorgabe ist snp
 if [[ "${STYLE,,}" != 'srp' && "${STYLE,,}" != 'snp' ]] ; then
-  f_log ERROR "Unbekannter Stil! (${STYLE})"
+  f_log ERR "Unbekannter Stil! (${STYLE})"
   exit 1
 fi
 
@@ -230,7 +230,7 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   done
   mapfile -t VDR_CHANNELSCONF < "$CHANNELSCONF"  # Kanalliste in Array einlesen
   [[ "${#CHANNELNAMES[@]}" -ne "${#VDR_CHANNELSCONF[@]}" ]] && \
-    { f_log ERROR 'Kanalliste und Kanalnamen unterschiedlich!' ; exit 1 ;}
+    { f_log ERR 'Kanalliste und Kanalnamen unterschiedlich!' ; exit 1 ;}
 
   for i in "${!CHANNELNAMES[@]}" ; do
     [[ -z "${CHANNELNAMES[i]}" ]] && { ((grp++)) ; continue ;}           # Kanalgruppe
@@ -256,13 +256,14 @@ if [[ -f "$CHANNELSCONF" ]] ; then
             printf -v NAMESPACE '%X' "${NAMESPACE%.*}" ;;
        'T') NAMESPACE='EEEE' ;;
        'C') NAMESPACE='FFFF' ;;
-         *) f_log ERROR "Unbekannter Namespace: ${VDRCHANNEL[3]} (${VDR_CHANNELSCONF[i]})" ; continue;;
+         *) f_log ERR "Unbekannter Namespace: ${VDRCHANNEL[3]} (${VDR_CHANNELSCONF[i]})" ; continue;;
     esac
     case ${VDRCHANNEL[5]} in
-        '0') CHANNELTYPE='2' ;;
-      *'=2') CHANNELTYPE='1' ;;
-     *'=27') CHANNELTYPE='19' ;;
-         *) f_log ERROR "Unbekannter Channeltype: ${VDRCHANNEL[5]} (${VDR_CHANNELSCONF[i]})" ; continue;;
+        '0') CHANNELTYPE='2' ;;   # Radio
+      *'=2') CHANNELTYPE='1' ;;   # MPEG-2 (SD) Alternativ 16 MPEG (SD)
+     *'=27') CHANNELTYPE='19' ;;  # H.264 (HD)
+     *'=36') CHANNELTYPE='1F' ;;  # H.265 (UHD)
+          *) f_log ERR "Unbekannter Kanaltyp: ${VDRCHANNEL[5]} (${VDR_CHANNELSCONF[i]})" ; continue;;
     esac
 
     UNIQUE_ID="${SID}_${TID}_${NID}_${NAMESPACE}"
@@ -305,7 +306,7 @@ if [[ -f "$CHANNELSCONF" ]] ; then
   [[ -t 1 ]] && echo -e '\n'
   f_log INFO "Serviceliste exportiert nach $SERVICE_FILE"
 else
-  f_log ERROR "$CHANNELSCONF nicht gefunden!"
+  f_log ERR "$CHANNELSCONF nicht gefunden!"
   exit 1
 fi
 
@@ -325,7 +326,7 @@ fi
 if command -v convert &>/dev/null ; then
   f_log INFO 'ImageMagick (convert) gefunden!'
 else
-  f_log ERROR 'ImageMagick (convert) nicht gefunden! "ImageMagick" installieren!'
+  f_log ERR 'ImageMagick (convert) nicht gefunden! "ImageMagick" installieren!'
   exit 1
 fi
 
@@ -337,13 +338,13 @@ elif command -v rsvg-convert &>/dev/null && [[ "${SVGCONVERTER,,}" = 'rsvg' ]] ;
   svgconverter=('rsvg-convert' -w 1000 --keep-aspect-ratio --output)
   f_log INFO 'Verwende rsvg als SVG-Konverter!'
 else
-  f_log ERROR "SVG-Konverter: ${SVGCONVERTER} nicht gefunden!"
+  f_log ERR "SVG-Konverter: ${SVGCONVERTER} nicht gefunden!"
   exit 1
 fi
 
 # Prüfen ob Serviceliste existiert
 if [[ ! -f "${BUILD_OUTPUT}/servicelist-vdr-${STYLE}.txt" ]] ; then
-  f_log ERROR "Keine $STYLE Serviceliste gefunden!"
+  f_log ERR "Keine $STYLE Serviceliste gefunden!"
   exit 1
 fi
 
@@ -413,7 +414,7 @@ cd "$LOGODIR" || exit 1
 echo -e '\n'
 
 f_log INFO 'Verlinke Kanallogos…'
-[[ ${#LOGO_NAMES[@]} -eq ${#LOGO_PATHS[@]} ]] || f_log ERROR "Anzahl der Logos stimmt nicht überein!"
+[[ ${#LOGO_NAMES[@]} -eq ${#LOGO_PATHS[@]} ]] || f_log ERR "Anzahl der Logos stimmt nicht überein!"
 # Logos verlinken
 for i in "${!LOGO_NAMES[@]}"; do
   logo_name="${LOGO_NAMES[i]}"  # Name des Logos
@@ -421,19 +422,25 @@ for i in "${!LOGO_NAMES[@]}"; do
 
   if [[ "$logo_name" =~ / ]] ; then  # Kanal mit / im Namen
     ch_path="${logo_name%/*}"        # Pfad des Kanals
-    mkdir --parents "./${ch_path}" || f_log ERROR "Ordner ${LOGODIR}/${ch_path} konnte nicht erstellt werden!"
+    mkdir --parents "./${ch_path}" || f_log ERR "Ordner ${LOGODIR}/${ch_path} konnte nicht erstellt werden!"
     logo_path="../${logo_path}"  # Pfad zum Logo (../logos/...)
   fi
 
   if [[ -f "${LOGO_PATHS[i]}" ]] ; then  # Symlink erstellen
     ln --symbolic --force "$logo_path" "$logo_name" 2>> "${LOGFILE:-/dev/null}" \
-      || f_log ERROR "Symlink für $logo_name konnte nicht erstellt werden!"
+      || f_log ERR "Symlink für $logo_name konnte nicht erstellt werden!"
   else
     f_log WARN "Logo $logo_name nicht gefunden!"
   fi
 done
 
-# Symlink/Logo History
+# Eigentümer und Berechtigungen setzen
+chown --no-dereference --recursive "${LOGO_USER:-vdr}:${LOGO_GROUP:-vdr}" "$LOGODIR" 2> "${LOGFILE:-/dev/null}" \
+  || f_log ERR "Eigentümer/Gruppe ${LOGO_USER:-vdr}:${LOGO_GROUP:-vdr} konnte nicht gesetzt werden!"
+chmod --recursive 644 "${LOGODIR}"/*.png 2> "${LOGFILE:-/dev/null}" \
+  || f_log ERR "Berechtigungen ${LOGODIR} konnten nicht gesetzt werden!"
+
+# Logo History speichern
 if [[ -n "$LOGO_HIST" ]] ; then
   [[ ! "$LOGO_HIST" =~ / ]] && LOGO_HIST="${BUILD_OUTPUT}/${LOGO_HIST}"
   if [[ -f "$LOGO_HIST" ]] ; then

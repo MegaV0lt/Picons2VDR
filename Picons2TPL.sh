@@ -65,7 +65,7 @@ while getopts ":c:" opt ; do
        if [[ -f "$CONFIG" ]] ; then  # Konfig wurde angegeben und existiert
          source "$CONFIG" ; CONFLOADED='Angegebene' ; break
        else
-         f_log ERROR "Die angegebene Konfigurationsdatei fehlt! (\"${CONFIG}\")"
+         f_log ERR "Die angegebene Konfigurationsdatei fehlt! (\"${CONFIG}\")"
          exit 1
        fi ;;
     ?) ;;
@@ -84,7 +84,7 @@ if [[ -z "$CONFLOADED" ]] ; then  # Konfiguration wurde noch nicht geladen
     fi
   done
   if [[ -z "$CONFLOADED" ]] ; then  # Konfiguration wurde nicht gefunden
-    f_log ERROR "Keine Konfigurationsdatei gefunden! (\"${CONFIG_DIRS[*]}\")"
+    f_log ERR "Keine Konfigurationsdatei gefunden! (\"${CONFIG_DIRS[*]}\")"
     exit 1
   fi
 fi
@@ -106,7 +106,7 @@ for cmd in "${commands[@]}" ; do
   command -v "$cmd" &>/dev/null || missingcommands+=("$cmd")
 done
 if [[ -n "${missingcommands[*]}" ]] ; then
-  f_log ERROR "Fehlende Datei(en): ${missingcommands[*]}"
+  f_log ERR "Fehlende Datei(en): ${missingcommands[*]}"
   exit 1
 fi
 
@@ -118,7 +118,7 @@ if [[ ! -d "${PICONS_DIR}/.git" ]] ; then
   f_log INFO "=> Zum abbrechen Strg-C drücken => Starte in 5 Sekunden…"
   sleep 5
   git clone --depth 1 "$PICONS_GIT" "$PICONS_DIR" \
-    || { f_log ERROR 'Klonen hat nicht funktioniert!' ; exit 1 ;}
+    || { f_log ERR 'Klonen hat nicht funktioniert!' ; exit 1 ;}
 else
   f_log INFO "Aktualisiere Picons in ${PICONS_DIR}…"
   cd "$PICONS_DIR" || exit 1
@@ -162,7 +162,7 @@ fi
 if command -v convert &>/dev/null ; then
   f_log INFO 'ImageMagick gefunden!'
 else
-  f_log ERROR 'ImageMagick nicht gefunden! "ImageMagick" installieren!'
+  f_log ERR 'ImageMagick nicht gefunden! "ImageMagick" installieren!'
   exit 1
 fi
 
@@ -174,7 +174,7 @@ elif command -v rsvg-convert &>/dev/null && [[ "${SVGCONVERTER,,}" = 'rsvg' ]] ;
   svgconverter=('rsvg-convert' -w 1000 --keep-aspect-ratio --output)
   f_log INFO 'Verwende rsvg als SVG-Konverter!'
 else
-  f_log ERROR "SVG-Konverter: ${SVGCONVERTER} nicht gefunden!"
+  f_log ERR "SVG-Konverter: ${SVGCONVERTER} nicht gefunden!"
   exit 1
 fi
 
