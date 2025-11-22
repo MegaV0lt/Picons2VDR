@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=251113  # Version des Skripts
+VERSION=251120  # Version des Skripts
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -25,6 +25,13 @@ msgINF='\e[42m \e[0m' ; msgWRN='\e[103m \e[0m'     # " " mit grünem/gelben Hint
 PICONS_GIT='https://github.com/picons/picons.git'  # Picon-Logos
 PICONS_DIR='picons.git'                            # Ordner, wo die Picon-Kanallogos liegen (GIT)
 NOT_SET='--------'                                 # Variable nicht gesetzt
+declare -l SNPNAME STYLE  # Bei Zuweisung in Kleinbuchstaben umwandeln
+
+# Pfade festlegen
+LOCATION="${SELF_PATH}/${PICONS_DIR}"          # Pfad vom GIT
+BUILD_SOURCE="${LOCATION}/build-source"        # Quelldateien
+BUILD_OUTPUT="${LOCATION}/build-output"        # Ausgabeordner
+TEMP=$(mktemp -d --suffix=."${SELF_NAME%.*}")  # Temp-Verzeichnis
 
 ### Funktionen
 f_log(){  # Logausgabe auf Konsole oder via Logger. $1 zum kennzeichnen der Meldung.
@@ -53,9 +60,10 @@ f_self_update() {  # Automatisches Update
   upstream=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream})
   if [[ -n "$(git diff --name-only "$upstream" "$SELF_NAME")" ]] ; then
     f_log INFO "Neue Version von $SELF_NAME gefunden! Starte Update…"
-    git pull --force
-    git checkout "$branch"
-    git pull --force || exit 1
+    { git pull --force
+      git checkout "$branch"
+      git pull --force || exit 1
+    } &>> "${LOGFILE:-/dev/null}"
     f_log INFO "Starte $SELF_NAME neu…"
     cd - || exit 1   # Zurück ins alte Arbeitsverzeichnis
     exec "$SELF" "$@"
@@ -94,7 +102,7 @@ f_create_symlinks() {  # Symlinks erzeugen und Logos in Array sammeln
     fi
 
     if [[ -n "$logo_srp" && -n "$logo_snp" && "$logo_srp" != "$logo_snp" ]] ; then  # Unterschiedliche Logos
-      f_log WARN "?=> Unterschiedliche Logos für $channel (SRP: $logo_srp | SNP: ${logo_snp}) gefunden!"
+      f_log WARN "?=> Unterschiedliche Logos für $channel gefunden! (SRP: $logo_srp | SNP: ${logo_snp})"
       if [[ "${PREFERED_LOGO:=snp}" == 'srp' ]] ; then  # Bevorzugtes Logo verwenden
         unset -v 'logo_snp'
       else
@@ -105,11 +113,11 @@ f_create_symlinks() {  # Symlinks erzeugen und Logos in Array sammeln
 
     if [[ -n "$logo_srp" ]] ; then
       LOGO_NAMES+=("${servicename}.png")
-      LOGO_PATHS+=("logos/${logo_srp}.png")
+      LOGO_PATHS+=(".logos/${logo_srp}.png")
       LOGO_COLLECTION+=("$logo_srp")
     elif [[ -n "$logo_snp" ]] ; then
       LOGO_NAMES+=("${servicename}.png")
-      LOGO_PATHS+=("logos/${logo_snp}.png")
+      LOGO_PATHS+=(".logos/${logo_snp}.png")
       LOGO_COLLECTION+=("$logo_snp")
     fi
   done
@@ -117,6 +125,7 @@ f_create_symlinks() {  # Symlinks erzeugen und Logos in Array sammeln
 
 ### Start
 SCRIPT_TIMING[0]=$SECONDS  # Startzeit merken (Sekunden)
+f_log INFO "==> $SELF_NAME #${VERSION} - Start…"
 
 # Testen, ob Konfiguration angegeben wurde (-c …)
 while getopts ":c:" opt ; do
@@ -149,26 +158,26 @@ if [[ -z "$CONFLOADED" ]] ; then  # Konfiguration wurde noch nicht geladen
   fi
 fi
 
-f_log INFO "==> $SELF_NAME #${VERSION} - Start…"
-f_log INFO "$CONFLOADED Konfiguration: ${CONFIG}"
-
-[[ "$AUTO_UPDATE" == 'true' ]] && f_self_update "$@"
-
-# Pfade festlegen
-LOCATION="${SELF_PATH}/${PICONS_DIR}"    # Pfad vom GIT
-BUILD_SOURCE="${LOCATION}/build-source"  # Quelldateien
-BUILD_OUTPUT="${LOCATION}/build-output"  # Ausgabeordner
-logfile=$(mktemp --suffix=.servicelist.log)
-temp=$(mktemp -d --suffix=.picons)
-f_log INFO "Log-Datei: $logfile"
-
 # Benötigte Variablen prüfen
 for var in CHANNELSCONF LOGODIR ; do
   [[ -z "${!var}" ]] && { f_log ERR "Variable $var ist nicht gesetzt!" ; exit 1 ;}
 done
 
+# Stil gültig?
+STYLE="${1:-utf8snp}"  # Vorgabe ist utf8snp
+if [[ "$STYLE" != 'srp' && "$STYLE" != 'utf8snp' ]] ; then
+  f_log ERR "Unbekannter Logo-Index! (${STYLE})"
+  exit 1
+fi
+
+f_log INFO "   $CONFLOADED Konfiguration: ${CONFIG}"
+f_log INFO "   Logo-Index: ${STYLE}"
+f_log INFO "   Kanal-Liste: ${CHANNELSCONF}"
+f_log INFO "   Logo-Verzeichnis: ${LOGODIR}"
+f_log INFO "   Log-Datei: ${LOGFILE:-keine}"
+
 # Benötigte Programme suchen
-COMMANDS=(bc column find git iconv ln mkdir mv printf readlink rm sed sort)
+COMMANDS=(bc find git iconv ln mkdir mv printf rm sort)
 for cmd in "${COMMANDS[@]}" ; do
   type "$cmd" &>/dev/null || MISSING_COMMANDS+=("$cmd")
 done
@@ -176,6 +185,9 @@ if [[ -n "${MISSING_COMMANDS[*]}" ]] ; then
   f_log ERR "Fehlende Datei(en): ${MISSING_COMMANDS[*]}"
   exit 1
 fi
+
+# Automatisches Update
+[[ "$AUTO_UPDATE" == 'true' ]] && f_self_update "$@"
 
 # picons.git laden oder aktualisieren
 cd "$SELF_PATH" || exit 1
@@ -191,7 +203,7 @@ if [[ ! -d "${PICONS_DIR}/.git" ]] ; then
 else
   f_log INFO "Aktualisiere Picons in ${PICONS_DIR}…"
   cd "$PICONS_DIR" || exit 1
-  if ! git pull &>> "$logfile" ; then
+  if ! git pull &>> "${LOGFILE:-/dev/null}" ; then
     f_log ERR 'Aktualisierung hat nicht funktioniert!'
     exit 1
   else
@@ -201,36 +213,50 @@ else
   fi
 fi
 
-# Stil gültig?
-STYLE="${1:-snp}"  # Vorgabe ist snp
-if [[ "${STYLE,,}" != 'srp' && "${STYLE,,}" != 'snp' ]] ; then
-  f_log ERR "Unbekannter Stil! (${STYLE})"
-  exit 1
+# utf8snp.index in NFC umwandeln (Bei Fehler weiter mit original Datei)
+if [[ "$STYLE" == 'utf8snp' ]] ; then
+  f_log INFO "Wandle ${BUILD_SOURCE}/utf8snp.index in NFC um (Verwende normalize_text.py)…"
+  if command -v python3 &>/dev/null ; then
+    python3 "${SELF_PATH}/normalize_text.py" -i "${BUILD_SOURCE}/utf8snp.index" -o "${TEMP}/utf8snp.nfc.index" 2>> "${LOGFILE:-/dev/null}" \
+      || { f_log ERR 'Konvertierung in NFC ist fehlgeschlagen!' ;}
+  else
+    f_log ERR "python3 nicht gefunden, kann normalize_text.py nicht ausführen!"
+  fi
+  # Priorisiere die temporäre Datei, sonst vorhandene projektinterne Datei als Index verwenden
+  if [[ -f "${TEMP}/utf8snp.nfc.index" ]] ; then
+    INDEX_PATH="${TEMP}/utf8snp.nfc.index"
+  else
+    INDEX_PATH="${BUILD_SOURCE}/utf8snp.index"
+  fi
+else
+  INDEX_PATH="${BUILD_SOURCE}/${STYLE}.index"
 fi
 
-# .index einlesen
-#mapfile -t INDEX < "${BUILD_SOURCE}/${STYLE}.index"
-printf -v INDEX '%b\n' ''  # Damit auch das erste Element gefunden wird (=~)
-INDEX+=$(<"${BUILD_SOURCE}/${STYLE}.index")
+# Index-Datei in  Array einlesen
+mapfile -t INDEX < "${INDEX_PATH}"
 
 ### VDR Serviceliste erzeugen
 if [[ -f "$CHANNELSCONF" ]] ; then
-  _LANG="${LANG:-LC_NAME}"  # LC merken
+  _LC="${LANG:-LC_NAME}"  # Locale merken
   TEMPFILE=$(mktemp --suffix=.servicelist)
   read -r -a ENCODING < <(encguess -u "$CHANNELSCONF")
-  f_log INFO "Encoding der Kanalliste: ${ENCODING[1]:-unbekannt}"
-  # Kanalliste in ASCII umwandeln
-  #* Funktioniert nicht bei Buchstaben wie ΑαΒβΓγΔδ (Griechisch)
-  #mapfile -t CHANNELNAMES < <(LC_CTYPE='de_DE.UTF-8' iconv -f "${ENCODING[1]:-UTF-8}" -t ASCII//TRANSLIT -c < "$CHANNELSCONF" 2>> "$logfile")
-  mapfile -t CHANNELNAMES < <(iconv -f "${ENCODING[1]:-UTF-8}" -t ASCII//TRANSLIT -c < "$CHANNELSCONF" 2>> "$logfile")
+  f_log INFO "Kodierung der Kanalliste: ${ENCODING[1]:-unbekannt}"
+  mapfile -t VDR_CHANNELSCONF < "$CHANNELSCONF"  # Kanalliste in Array einlesen
+  if [[ "$STYLE" == 'utf8snp' ]] ; then
+    mapfile -t CHANNELNAMES < <(iconv -f "${ENCODING[1]:-UTF-8}" -t UTF-8 -c < "$CHANNELSCONF" 2>> "${LOGFILE:-/dev/null}")
+  else
+    # Kanalliste in ASCII umwandeln #*Funktioniert nicht bei Buchstaben wie ΑαΒβΓγΔδ (Griechisch)
+    mapfile -t CHANNELNAMES < <(iconv -f "${ENCODING[1]:-UTF-8}" -t ASCII//TRANSLIT -c < "$CHANNELSCONF" 2>> "${LOGFILE:-/dev/null}")
+  fi
+  # Beispiel Eintrag VDR_CHANNELSCONF:
+  #Das Erste HD;ARD:11493:HC23M5O35P0S1:S19.2E:22000:5101=27:5102=deu@3,5103=mis@3,5107=qks@3;5106=deu@106:5104;5105=deu:0:10301:1:1019:0
   for i in "${!CHANNELNAMES[@]}"; do
     CHANNELNAMES[i]=${CHANNELNAMES[i]%%:*}  # Kanalname mit Kurzname und Provider
     CHANNELNAMES[i]=${CHANNELNAMES[i]%%;*}  # Kanalname ohne Provider
-    CHANNELNAMES[i]=${CHANNELNAMES[i]%%,*}  # Kanalname ohne Kurzname
+    CHANNELNAMES[i]=${CHANNELNAMES[i]%,*}   # Kanalname ohne Kurzname. Nur das letzte , entfernen (NDR 90,3,;ARD NDR)
   done
-  mapfile -t VDR_CHANNELSCONF < "$CHANNELSCONF"  # Kanalliste in Array einlesen
   [[ "${#CHANNELNAMES[@]}" -ne "${#VDR_CHANNELSCONF[@]}" ]] && \
-    { f_log ERR 'Kanalliste und Kanalnamen unterschiedlich!' ; exit 1 ;}
+    { f_log ERR 'Anzahl der Kanalnamen und der Kanäle ist unterschiedlich!' ; exit 1 ;}
 
   for i in "${!CHANNELNAMES[@]}" ; do
     [[ -z "${CHANNELNAMES[i]}" ]] && { ((grp++)) ; continue ;}           # Kanalgruppe
@@ -238,7 +264,7 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     [[ "${CHANNELNAMES[i]}" == '.' ]] && { ((bl++)) ; continue ;}        # '.' als Kanalname
     if [[ -t 1 ]] ; then
       ((cnt++))
-      if ((cnt % 10 == 0)) ; then
+      if ((cnt % 5 == 0)) ; then
         echo -ne "$msgINF Konvertiere Kanalname -> Service #${cnt}"\\r
       fi
     fi
@@ -249,16 +275,16 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     printf -v TID '%X' "${VDRCHANNEL[11]}"
     printf -v NID '%X' "${VDRCHANNEL[10]}"
 
-    case ${VDRCHANNEL[3]} in
+    case ${VDRCHANNEL[3]} in  # S19.2E
       *'W') NAMESPACE=$(bc -l <<< "scale=0 ; 3600 - ${VDRCHANNEL[3]//[^0-9.]} * 10")
             printf -v NAMESPACE '%X' "${NAMESPACE%.*}" ;;
       *'E') NAMESPACE=$(bc -l <<< "scale=0 ; ${VDRCHANNEL[3]//[^0-9.]} * 10")
             printf -v NAMESPACE '%X' "${NAMESPACE%.*}" ;;
-       'T') NAMESPACE='EEEE' ;;
-       'C') NAMESPACE='FFFF' ;;
+       'T') NAMESPACE='EEEE' ;;  # DVB-T
+       'C') NAMESPACE='FFFF' ;;  # DVB-C
          *) f_log ERR "Unbekannter Namespace: ${VDRCHANNEL[3]} (${VDR_CHANNELSCONF[i]})" ; continue;;
     esac
-    case ${VDRCHANNEL[5]} in
+    case ${VDRCHANNEL[5]} in  # 5101=27
         '0') CHANNELTYPE='2' ;;   # Radio
       *'=2') CHANNELTYPE='1' ;;   # MPEG-2 (SD) Alternativ 16 MPEG (SD)
      *'=27') CHANNELTYPE='19' ;;  # H.264 (HD)
@@ -271,50 +297,57 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     SERVICEREF="1_0_${CHANNELTYPE}_${SERVICEREF_ID}_0_0_0"
     IFS=';' read -r -a REPLY <<< "${VDRCHANNEL[0]}"
     : "${REPLY[0]%,*}"           # Kanalname ohne Kurzname
-    VDR_CHANNELNAME="${_//|/:}"  # | durch : ersetzen
+    VDR_CHANNELNAME="${_//|/:}"  # '|' durch ':' ersetzen
+    SNPNAME="${VDR_CHANNELNAME//'/'}"  # Alle '/' löschen
 
     LC_ALL='C'  # Halbiert die Zeit beim suchen im index
-    #LOGO_SRP=$(grep -i -m 1 "^$UNIQUE_ID" <<< "$INDEX" | sed -n -e 's/.*=//p')
-    re="[[:space:]]${UNIQUE_ID}([^[:space:]]*)"
-    [[ "$INDEX" =~ $re ]] && { LOGO_SRP="${BASH_REMATCH[0]#*=}" ;} || LOGO_SRP="$NOT_SET"
+    for entry in "${INDEX[@]}"; do
+      #entry="${entry//$'\r'/}"  # Entferne mögliche CR (\r) aus Einträgen (Windows-Zeilenenden)
+      # Check if entry contains Tab, CR or LF and replace them with spaces and log them
+      #if [[ "$entry" =~ $'\t' || "$entry" =~ $'\r' || "$entry" =~ $'\n' ]] ; then
+      #  f_log WARN "Unerwartete Steuerzeichen in Index-Eintrag: ${entry}"
+      #  #: "${entry//$'\t'/ }" ; : "${_//$'\r'/ }" ; entry="${_//$'\n'/ }"  # Tabs, CR, LF durch Leerzeichen ersetzen
+      #fi
 
-    if [[ "$STYLE" == 'snp' ]] ; then
-      #IFS=';' read -r -a REPLY <<< "${CHANNELNAMES[i]}"  # ASCII
-      # sed -e 's/^[ \t]*//' -e 's/|//g' -e 's/^//g')
-      : "${CHANNELNAMES[i]//\&/and}" ; : "${_//'*'/star}" ; : "${_//+/plus}"  # Zeichen ersetzen (&,*,+)
-      : "${_,,}" ; SNPNAME="${_//[^a-z0-9]}"                        # In Kleinbuchstaben und nur a-z0-9
-      if [[ -n "$SNPNAME" ]] ; then
-        #LOGO_SNP=$(grep -i -m 1 "^$SNPNAME=" <<< "$INDEX" | sed -n -e 's/.*=//p')
-        re="[[:space:]]${SNPNAME}=([^[:space:]]*)"
-        [[ "$INDEX" =~ $re ]] && { LOGO_SNP="${BASH_REMATCH[1]}" ;} || LOGO_SNP="$NOT_SET"
-      else
-        SNPNAME="$NOT_SET"
+      # Check if entry contains unique ID (283D_3FB_1_C00000=daserstehd)
+      if [[ "$entry" == "${SERVICEREF_ID}="* ]] ; then
+        LOGO_SRP="${entry#*=}"
+        [[ "$STYLE" == 'srp' ]] && break  # for entry
       fi
-      LC_ALL="$_LANG"  # Sparcheinstellungen zurückstellen
+
+      # Check if entry contains name of the channel
+      if [[ "$STYLE" == 'utf8snp' && -n "$SNPNAME" ]] ; then
+        if [[ "${entry}" == "${SNPNAME}="* ]] ; then
+          LOGO_SNP="${entry#*=}"
+          break  # for entry
+        fi
+      fi
+    done
+
+    # Write to tempfile
+    if [[ "$STYLE" == 'utf8snp' ]] ; then
       echo -e "${SERVICEREF}\t${VDR_CHANNELNAME}\t${SERVICEREF_ID}=${LOGO_SRP}\t${SNPNAME}=${LOGO_SNP}" >> "$TEMPFILE"
     else
-      LC_ALL="$_LANG"  # Sparcheinstellungen zurückstellen
       echo -e "${SERVICEREF}\t${VDR_CHANNELNAME}\t${SERVICEREF_ID}=${LOGO_SRP}" >> "$TEMPFILE"
     fi
-  done
+    LC_ALL="$_LC"  # Sparcheinstellungen zurückstellen
+    # Variablen zurücksetzen
+    unset -v VDRCHANNEL NAMESPACE CHANNELTYPE VDR_CHANNELNAME
+    LOGO_SRP="$NOT_SET" ; LOGO_SNP="$NOT_SET"
+    SNPNAME=''
+  done  # for i in "${!VDR_CHANNELSCONF[@]}"
 
   SERVICE_FILE="${BUILD_OUTPUT}/servicelist-vdr-${STYLE}.txt"
   #sort -t $'\t' -k 2,2 "$TEMPFILE" | sed -e 's/\t/^|/g' | column -t -s $'^' | sed -e 's/|/  |  /g' > "$SERVICE_FILE"
-  #sort --field-separator=$'\t' --key=2,2 "$TEMPFILE" | sed -e 's/\t/  |  /g' > "$SERVICE_FILE"
   sort --field-separator=$'\t' --key=2,2 "$TEMPFILE" > "$SERVICE_FILE"
   rm "$TEMPFILE"
-  [[ -t 1 ]] && echo -e '\n'
   f_log INFO "Serviceliste exportiert nach $SERVICE_FILE"
 else
   f_log ERR "$CHANNELSCONF nicht gefunden!"
   exit 1
 fi
 
-### Icons mit Hintergrund erstellen ###
-
-logfile=$(mktemp --suffix=.picons.log)
-f_log INFO "Log-Datei: $logfile"
-
+# Bildkomprimierung prüfen
 if command -v pngquant &>/dev/null ; then
   pngquant='pngquant'
   f_log INFO 'Bildkomprimierung (pngquant) aktiviert!'
@@ -322,14 +355,14 @@ else
   pngquant='cat'
   f_log WARN 'Bildkomprimierung deaktiviert! "pngquant" installieren!'
 fi
-
+# Bildkonvertierung prüfen
 if command -v convert &>/dev/null ; then
   f_log INFO 'ImageMagick (convert) gefunden!'
 else
   f_log ERR 'ImageMagick (convert) nicht gefunden! "ImageMagick" installieren!'
   exit 1
 fi
-
+# SVG-Konverter prüfen
 : "${SVGCONVERTER:=rsvg}"  # Vorgabe ist rsvg
 if command -v inkscape &>/dev/null && [[ "${SVGCONVERTER,,}" == 'inkscape' ]] ; then
   svgconverter='inkscape -w 850 --without-gui --export-area-drawing --export-png='
@@ -350,9 +383,8 @@ fi
 
 # Einfache Prüfung der Quellen
 if [[ -t 1 ]] ; then
-  f_log INFO 'Überprüfe snp/srp Index…'
-  "${LOCATION}/resources/tools/check-index.sh" "$BUILD_SOURCE" srp
-  "${LOCATION}/resources/tools/check-index.sh" "$BUILD_SOURCE" snp
+  f_log INFO "Überprüfe $STYLE Index…"
+  "${LOCATION}/resources/tools/check-index.sh" "$BUILD_SOURCE" "$STYLE"
   f_log INFO 'Überprüfe logos…'
   "${LOCATION}/resources/tools/check-logos.sh" "${BUILD_SOURCE}/logos"
 fi
@@ -363,14 +395,20 @@ f_create_symlinks  # Array's 'LOGO_PATHS' und 'LOGO_COLLECTION' erstellen
 
 # Konvertierung der Logos
 LOGO_COUNT="${#LOGO_COLLECTION[@]}"
-mkdir --parents "${temp}/cache" || { echo "Fehler beim erzeugen von ${temp}/cache" >&2 ; exit 1 ;}
-[[ ! -d "${LOGODIR}/logos" ]] && { mkdir --parents "${LOGODIR}/logos" || exit 1 ;}
+mkdir --parents "${TEMP}/cache" || { echo "Fehler beim erzeugen von ${TEMP}/cache" >&2 ; exit 1 ;}
+[[ ! -d "${LOGODIR}/.logos" ]] && { mkdir --parents "${LOGODIR}/.logos" || exit 1 ;}
 
 RESOLUTION="${LOGO_CONF[0]:=220x132}"      # Hintergrundgröße
 RESIZE="${LOGO_CONF[1]:=200x112}"          # Logogröße
 LOGO_TYPE="${LOGO_CONF[2]:=dark}"          # Typ (dark/light)
 BACKGROUND="${LOGO_CONF[3]:=transparent}"  # Hintergrund (transparent/blue/...)
 
+# Hintergrund vorhanden?
+if [[ ! -f "${BUILD_SOURCE}/backgrounds/${RESOLUTION}/${BACKGROUND}.png" ]] ; then
+  f_log WARN "Hintergrund fehlt! (${BUILD_SOURCE}/backgrounds/${RESOLUTION}/${BACKGROUND}.png)"
+fi
+
+### Logos erzeugen
 f_log INFO "Erzeuge Logos: ${STYLE}.${RESOLUTION}-${RESIZE}.${LOGO_TYPE}.on.${BACKGROUND}…"
 for logoname in "${LOGO_COLLECTION[@]}" ; do
   ((currentlogo++))
@@ -382,55 +420,51 @@ for logoname in "${LOGO_COLLECTION[@]}" ; do
     logotype='default'
   fi
 
-  echo "--> ${logoname}.${logotype}" >> "$logfile"
-
+  # echo "--> ${logoname}.${logotype}" >> "${LOGFILE:-/dev/null}"  # Debug-Ausgabe
+  # SVG-Datei vorhanden?
   if [[ -f "${BUILD_SOURCE}/logos/${logoname}.${logotype}.svg" ]] ; then
     ((svg++))
-    [[ "${LOGODIR}/logos/${logoname}.png" -nt "${BUILD_SOURCE}/logos/${logoname}.${logotype}.svg" ]] && continue  # Nur erstellen wenn neuer
-    logo="${temp}/cache/${logoname}.${logotype}.png"
+    [[ "${LOGODIR}/.logos/${logoname}.png" -nt "${BUILD_SOURCE}/logos/${logoname}.${logotype}.svg" ]] && continue  # Nur erstellen wenn neuer
+    logo="${TEMP}/cache/${logoname}.${logotype}.png"
     if [[ ! -f "$logo" ]] ; then
-      "${svgconverter[@]}" "${logo}" "${BUILD_SOURCE}/logos/${logoname}.${logotype}.svg" &>> "$logfile"
+      "${svgconverter[@]}" "${logo}" "${BUILD_SOURCE}/logos/${logoname}.${logotype}.svg" &>> "${LOGFILE:-/dev/null}" \
+        || { f_log ERR "SVG-Konvertierung für ${logoname}.${logotype}.svg fehlgeschlagen!" ; continue ;}
     fi
   else
     ((png++))
     logo="${BUILD_SOURCE}/logos/${logoname}.${logotype}.png"
-    [[ "${LOGODIR}/logos/${logoname}.png" -nt "$logo" ]] && continue  # Nur erstellen wenn neuer
+    [[ "${LOGODIR}/.logos/${logoname}.png" -nt "$logo" ]] && continue  # Nur erstellen wenn neuer
   fi
 
-  # Hintergrund vorhanden?
-  if [[ ! -f "${BUILD_SOURCE}/backgrounds/${RESOLUTION}/${BACKGROUND}.png" ]] ; then
-    f_log WARN "Hintergrund fehlt! (${BUILD_SOURCE}/backgrounds/${RESOLUTION}/${BACKGROUND}.png)"
-  fi
-
-  # Erstelle optimiertes Logo mit Hintergrund
+  # Erstelle optimiertes Logo inklusiv Hintergrund
   convert "${BUILD_SOURCE}/backgrounds/${RESOLUTION}/${BACKGROUND}.png" \
     \( "$logo" -background none -bordercolor none -border 100 -trim -border 1% -resize "$RESIZE" -gravity center -extent "$RESOLUTION" +repage \) \
-    -layers merge - 2>> "$logfile" \
-    | "$pngquant" - 2>> "$logfile" > "${LOGODIR}/logos/${logoname}.png"
+    -layers merge - 2>> "${LOGFILE:-/dev/null}" \
+    | "$pngquant" - 2>> "${LOGFILE:-/dev/null}" > "${LOGODIR}/.logos/${logoname}.png"
   ((N_LOGO++))
 done
 
+[[ -t 1 ]] && echo -e '\n'
 cd "$LOGODIR" || exit 1
-echo -e '\n'
 
 f_log INFO 'Verlinke Kanallogos…'
 [[ ${#LOGO_NAMES[@]} -eq ${#LOGO_PATHS[@]} ]] || f_log ERR "Anzahl der Logos stimmt nicht überein!"
 # Logos verlinken
 for i in "${!LOGO_NAMES[@]}"; do
-  logo_name="${LOGO_NAMES[i]}"  # Name des Logos
-  logo_path="${LOGO_PATHS[i]}"  # Linkziel (Kanalname)
+  logo_name="${LOGO_NAMES[i]}"  # Name des Logos (VDR)
+  logo_path="${LOGO_PATHS[i]}"  # Linkziel (Erzeugtes Logo in .logos)
 
-  if [[ "$logo_name" =~ / ]] ; then  # Kanal mit / im Namen
+  if [[ "$logo_name" =~ / ]] ; then  # Kanalname enthält '/'
     ch_path="${logo_name%/*}"        # Pfad des Kanals
     mkdir --parents "./${ch_path}" || f_log ERR "Ordner ${LOGODIR}/${ch_path} konnte nicht erstellt werden!"
-    logo_path="../${logo_path}"  # Pfad zum Logo (../logos/...)
+    logo_path="../${logo_path}"  # Pfad zum Logo (../.logos/...)
   fi
 
   if [[ -f "${LOGO_PATHS[i]}" ]] ; then  # Symlink erstellen
     ln --symbolic --force "$logo_path" "$logo_name" 2>> "${LOGFILE:-/dev/null}" \
       || f_log ERR "Symlink für $logo_name konnte nicht erstellt werden!"
   else
-    f_log WARN "Logo $logo_name nicht gefunden!"
+    f_log WARN "Logo ${LOGO_COLLECTION[i]} für $logo_name nicht gefunden!"
   fi
 done
 
@@ -451,16 +485,15 @@ if [[ -n "$LOGO_HIST" ]] ; then
 fi
 
 # Aufräumen
-if [[ -d "$LOGODIR" && "$LOGODIR" != "/" ]] ; then
-  { find "$LOGODIR" -xtype l -delete             # Alte (defekte) Symlinks löschen
-    find "$LOGODIR" -LOGO_TYPE d -empty -delete  # Leere Verzeichnisse löschen
+if [[ -d "$LOGODIR" && "$LOGODIR" != '/' ]] ; then
+  { find "$LOGODIR" -xtype l -delete        # Alte (defekte) Symlinks löschen
+    find "$LOGODIR" -type d -empty -delete  # Leere Verzeichnisse löschen
   } &>> "${LOGFILE:-/dev/null}"
 fi
-[[ -d "$temp" ]] && rm --recursive "$temp"
-
-f_log INFO "Erstellen von Logos (${STYLE}) beendet!"
+[[ -d "$TEMP" && "$TEMP" != '/' ]] && rm --recursive "$TEMP"
 
 # Statistik anzeigen
+f_log INFO "Kanallogos (${STYLE}) wurden erstellt!"
 [[ "$nologo" -gt 0 ]] && f_log "==> $nologo Kanäle ohne Logo"
 [[ "$difflogo" -gt 0 ]] && f_log "==> $difflogo Kanäle mit unterschiedlichen Logos (Vorgabe: ${PREFERED_LOGO})"
 [[ "$obs" -gt 0 || "$bl" -gt 0 ]] && f_log "==> Übersprungen: 'OBSOLETE' (${obs:-0}), '.' (${bl:-0})"

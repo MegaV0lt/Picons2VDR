@@ -1,2 +1,3 @@
 *.conf
 picons.git/*
+__pycache__/*
