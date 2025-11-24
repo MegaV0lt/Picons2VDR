@@ -1,0 +1,96 @@
+++++++++++++++++++++++++++++++
++++ SERVICE REFERENCE CODE +++
+++++++++++++++++++++++++++++++
+
+         1 2 3   4   5  6    7   8 9 10
+---------------------------------------
+#SERVICE 1:0:1:445C:453:1:C00000:0:0:0:
+---------------------------------------
+    order → explanation
+---------------------------------------
+    first → service type (stream source) - to select the appropriate player for this service (1 = DVB-S/T/C/IP - DVB-Mediasink decoder; 4097 = Gstreamer multimedia player; 5001,5002,5003 = ServiceApp plugin and additional players such as ffmpeg + exteplayer3; 8192 = external HDMI input; 8193 = Youtube /8xxx services do not work in every Enigma!!!!/)
+   second → special purpose, normally there is always 0 ... but when there is an information line (so-called "marker") in the channel list, then the second position is 64 and the third position is the consecutive number of the information line, for example 1:64:consecutive_number:0:0:0:0:0:0:0: (the remaining portion of ServRefCode is filled with zeros in this case)
+    third → type of service (or type of service with its more detailed specification)
+          - 1=TV ; 2=RADIO ... in case of TV it is possible to specify a specific stream format: 16h = MPEG (SD); 19h = MPEG / H264 (HD,FHD); 1Fh = H265 (UHD,4K); etc.
+
+- some examples:
+     1:0:1:...     DVB-stream:0:TV
+     1:0:2:...     DVB-stream:0:RADIO
+  4097:0:1:...     internet-stream:0:TV
+  4097:0:2:...     internet-stream:0:RADIO
+
+   fourth → Service ID (445C => "SAT.1") - the identification code of a specific channel (service)
+    fifth → Transponder ID (453) - transponder number on a particular satellite
+    sixth → Network ID (1) - according to specifications and standards, this item can take on different meanings ... in the case of DVB-S it is used to identify the service provider
+  seventh → Namespace (00 C0 00 00)
+
+        - this item is a little more complicated to explain, so we will cover this item a little more extensively
+        - the meaning of the item differs slightly depending on the DVB-S / T / C technology used
+        - consists of a total of 4 bytes (8 ASCII characters as a hexadecimal value) and is divided into:
+           - left part (2 bytes / 4 ASCII characters of hexadecimal value)
+           - right part (2 bytes / 4 ASCII characters of hexadecimal value)
+        
+        == Namespace for DVB-T and DVB-C:
+           
+           - 2 bytes on the left (given in hexadecimal - as 4 ASCII characters):
+              - "EE EE" in hexadecimal value = identification code for DVB-T technology
+              - "FF FF" in hexadecimal value = identification code for DVB-C technology
+           - 2 bytes on the right side (given in hexadecimal - as 4 ASCII characters):
+              - depending on Enigma2 configuration:
+                a) transponder frequency
+                b) zero value (in hexadecimal "00 00") - this applies in most known Enigma2 distributions as an unused value in Enigma2 distributions
+        
+        == Namespace for DVB-S:
+           
+           - 2 bytes on the left (given in hexadecimal - as 4 ASCII characters):
+              - represent the position of a satellite in space ... examples and their "recalculation" - see below
+           - 2 bytes on the right side (given in hexadecimal - as 4 ASCII characters):
+              - depending on Enigma2 configuration:
+                a) transponder frequency ... where the bit on the left side of the binary numeric value, in this case means polarization (0 = H / 1 = V),
+                   i.e. the 16-bit length of the entire 2-byte value is not used, but only 15 bits (1 bit is used as a so-called "sign")
+                b) zero value (in hexadecimal "00 00") - this applies in most known Enigma2 distributions as an unused value in Enigma2 distributions
+        
+        == examples for DVB-S "namespace":
+        
+                00 82 00 00 => 0082 hex = 130 dec => 130 / 10 => 13.0 °E
+                00 A0 00 00 => 00A0 hex = 160 dec => 160 / 10 => 16.0 °E
+                00 C0 00 00 => 00C0 hex = 192 dec => 192 / 10 => 19.2 °E
+                00 EB 00 00 => 00EB hex = 235 dec => 235 / 10 => 23.5 °E
+
+            ....DECIMAL POINT:
+            --- in contrast to the use of the so-called "floating point" or otherwise as a data type "float", only the subtraction of the final "tithes" is used - as a decimal part of the number (in the decimal system)
+            --- this means that there is always one decimal place specified, in the resulting decimal value (after conversion from hexadecimal value to decimal value)
+           
+            ....DETERMINATION OF AZIMUTE FROM EAST & WEST (DVB-S):
+            --  if the value of the first 2 bytes is less than 1800 dec (708 hex) [or if it is equal to 1800 dec], then this value represents the azimuth in degrees from the East ... and is denoted by the sign "°E" (as East)
+            --  if the value of the first 2 bytes is greater than 1800 dec (708 hex), then we calculate the azimuth by subtracting this value from the maximum number 3600 dec (E10 hex) ... and thus obtain the azimuth value in degrees from the opposite side of the world ... so we get a degree from the West, denoted by the sign "°W" (as West)
+            --  the range of values 0 to 3600 (decimal value) is basically the range 0.0° to 360.0° and if we want to distinguish the azimuth to the West, then we must subtract the value from 360.0° (total 3600 decimal value)
+            --  calculation examples for West azimuth (°W):
+                0E 08 00 00 =>  E10 hex (3600 dec) - E08 hex (3592 dec)  =  8 hex =  8 dec   =>    8 / 10  =>  0.8 °W
+                0D CA 00 00 =>  E10 hex (3600 dec) - DCA hex (3530 dec)  = 46 hex = 70 dec   =>   70 / 10  =>  7.0 °W
+                0D C0 00 00 =>  E10 hex (3600 dec) - DC0 hex (3520 dec)  = 50 hex = 80 dec   =>   80 / 10  =>  8.0 °W
+
+Factual note on the hexadecimal number system:
+      - the zeros to the left of the hexadecimal numeric value are irrelevant and can be completely ignored
+      - zeros on the left are usually used only to specify the maximum possible hexadecimal value (so-called maximum "bit length" of the variable)
+
+eight to ten 
+          → 3 zeros at the end of the service reference code are currently unused by Enigma, perhaps used earlier or later. even now, as far as I know, they are using for experimental purposes (for testing) only
+          - the last value of the three digits (10th position in total) when using service type 4097, has the following usage in some Enigmas: 
+            0 = stream-buffer is not used
+            1 = stream-buffer in RAM memory
+            3 = stream-buffer in the file on the internal disk
+---------------------------------------
+
+
+---------------------------------------
+Another example of a service reference code from a particular Skylink provider ... on a specific satellite "Astra 23.5E" ... for a concrete channel Markiza:
+
+#SERVICE 1:0:19:13B4:C95:3:EB0000:0:0:0:
+
+- if we neglect the first three data, the other data means ...
+- 13B4 hex / 5044 dec means ServiceID - the unique number of a particular TV channel on a transponder or on a satellite (on other transponders or satellites, the same Markiza can be assigned a totally different number)
+- C95 hex / 3221 dec means TransponderID
+- value 3 represents NetworkID (I do not know what does it mean)
+- and finally the value of EB0000 hex represents the position of the satellite in the universe (EB hex => 235 dec => 23.5 E position)
+--------------------
