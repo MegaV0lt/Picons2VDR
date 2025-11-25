@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=251124  # Version des Skripts
+VERSION=251125  # Version des Skripts
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -83,7 +83,7 @@ f_create_symlinks() {  # Daten für Symlinks erzeugen und Logos in Array sammeln
   for line in "${MAPFILE[@]}" ; do
     IFS=$'\t' read -r -a line_data <<< "$line"
 
-    channel=$(f_trim "${line_data[1]//:/|}")     # ':' durch '|' ersetzen
+    channel=$(f_trim "${line_data[1]}")
     case "${TOLOWER^^}" in
       'A-Z') servicename="${channel,,[A-Z]}" ;;  # In Kleinbuchstaben (Außer Umlaute)
       'FALSE') servicename="$channel" ;;         # Nicht umwandeln
@@ -112,12 +112,11 @@ f_create_symlinks() {  # Daten für Symlinks erzeugen und Logos in Array sammeln
       ((difflogo++))
     fi
 
+    LOGO_NAMES+=("${servicename//:/|}.png")  # ':' durch '|' ersetzen (VDR Logo-Name)
     if [[ -n "$logo_srp" ]] ; then
-      LOGO_NAMES+=("${servicename}.png")
       LOGO_PATHS+=(".logos/${logo_srp}.png")
       LOGO_COLLECTION+=("$logo_srp")
     elif [[ -n "$logo_snp" ]] ; then
-      LOGO_NAMES+=("${servicename}.png")
       LOGO_PATHS+=(".logos/${logo_snp}.png")
       LOGO_COLLECTION+=("$logo_snp")
     fi
@@ -216,7 +215,7 @@ fi
 
 # utf8snp.index in NFC umwandeln (Bei Fehler weiter mit original Datei)
 if [[ "$STYLE" == 'utf8snp' ]] ; then
-  f_log INFO "Wandle utf8snp.index in NFC um (Verwende normalize_text.py)…"
+  f_log INFO "Wandle utf8snp.index in UTF-8 NFC um (Verwende normalize_text.py)…"
   if command -v python3 &>/dev/null ; then
     python3 "${SELF_PATH}/normalize_text.py" -i "${BUILD_SOURCE}/utf8snp.index" -o "${TEMP}/utf8snp.nfc.index" 2>> "$LOGFILE" \
       || { f_log ERR 'Konvertierung in NFC ist fehlgeschlagen!' ;}
@@ -239,37 +238,25 @@ mapfile -t INDEX < "${INDEX_PATH}"
 ### VDR Serviceliste erzeugen
 if [[ -f "$CHANNELSCONF" ]] ; then
   _LC="${LANG:-LC_NAME}"  # Locale merken
-  read -r -a ENCODING < <(encguess -u "$CHANNELSCONF")
+  read -r -a ENCODING < <(encguess -u "$CHANNELSCONF" 2>> "$LOGFILE")  # Kodierung der Kanalliste ermitteln
   f_log INFO "Kodierung der Kanalliste: ${ENCODING[1]:-unbekannt}"
-  mapfile -t VDR_CHANNELSCONF < "$CHANNELSCONF"  # Kanalliste in Array einlesen
-  if [[ "$STYLE" == 'utf8snp' ]] ; then
-    mapfile -t CHANNELNAMES < <(iconv -f "${ENCODING[1]:-UTF-8}" -t UTF-8 -c < "$CHANNELSCONF" 2>> "$LOGFILE")
-  else
-    # Kanalliste in ASCII umwandeln #*Funktioniert nicht bei Buchstaben wie ΑαΒβΓγΔδ (Griechisch)
-    mapfile -t CHANNELNAMES < <(iconv -f "${ENCODING[1]:-UTF-8}" -t ASCII//TRANSLIT -c < "$CHANNELSCONF" 2>> "$LOGFILE")
-  fi
+  # Kanalliste in Array einlesen (UTF-8)
+  mapfile -t VDR_CHANNELSCONF < <(iconv -f "${ENCODING[1]:-UTF-8}" -t UTF-8 -c < "$CHANNELSCONF" 2>> "$LOGFILE")
+  f_log INFO "Erzeuge VDR Serviceliste (${STYLE})…"
   # Beispiel Eintrag VDR_CHANNELSCONF:
-  #Das Erste HD;ARD:11493:HC23M5O35P0S1:S19.2E:22000:5101=27:5102=deu@3,5103=mis@3,5107=qks@3;5106=deu@106:5104;5105=deu:0:10301:1:1019:0
-  for i in "${!CHANNELNAMES[@]}"; do
-    CHANNELNAMES[i]=${CHANNELNAMES[i]%%:*}  # Kanalname mit Kurzname und Provider
-    CHANNELNAMES[i]=${CHANNELNAMES[i]%%;*}  # Kanalname ohne Provider
-    CHANNELNAMES[i]=${CHANNELNAMES[i]%,*}   # Kanalname ohne Kurzname. Nur das letzte , entfernen (NDR 90,3,;ARD NDR)
-  done
-  [[ "${#CHANNELNAMES[@]}" -ne "${#VDR_CHANNELSCONF[@]}" ]] && \
-    { f_log ERR 'Anzahl der Kanalnamen und der Kanäle ist unterschiedlich!' ; exit 1 ;}
-
-  for i in "${!CHANNELNAMES[@]}" ; do
-    [[ -z "${CHANNELNAMES[i]}" ]] && { ((grp++)) ; continue ;}           # Kanalgruppe
-    [[ "${CHANNELNAMES[i]}" =~ OBSOLETE ]] && { ((obs++)) ; continue ;}  # Als 'OBSOLETE' markierter Kanal
-    [[ "${CHANNELNAMES[i]}" == '.' ]] && { ((bl++)) ; continue ;}        # '.' als Kanalname
-    ((cnt++))  # Zähler für verarbeitete Kanäle
-    if [[ -t 1 ]] ; then
-      if ((cnt % 5 == 0)) ; then
-        echo -ne "$msgINF Konvertiere Kanalname -> Service #${cnt}"\\r
-      fi
-    fi
-
+  # Das Erste HD;ARD:11493:HC23M5O35P0S1:S19.2E:22000:5101=27:5102=deu@3,5103=mis@3,5107=qks@3;5106=deu@106:5104;5105=deu:0:10301:1:1019:0
+  for i in "${!VDR_CHANNELSCONF[@]}" ; do
     IFS=':' read -r -a VDRCHANNEL <<< "${VDR_CHANNELSCONF[i]}"
+    [[ -z "${VDRCHANNEL[0]}" ]] && { ((grp++)) ; continue ;}        # Kanalgruppe
+    : "${VDRCHANNEL[0]%;*}"  # Kanalname ohne Provider
+    CHANNEL_NAME="${_%,*}"   # Kanalname ohne Kurzname. Nur das letzte , entfernen (NDR 90,3,;ARD NDR)
+    [[ "$CHANNEL_NAME" =~ OBSOLETE ]] && { ((obs++)) ; continue ;}  # Als 'OBSOLETE' markierter Kanal
+    [[ "$CHANNEL_NAME" == '.' ]] && { ((bl++)) ; continue ;}        # '.' als Kanalname
+
+    ((cnt++))  # Zähler für verarbeitete Kanäle
+    if [[ -t 1 ]] && ((cnt % 5 == 0)) ; then
+      echo -ne "$msgINF Konvertiere Kanalname -> Service #${cnt}"\\r
+    fi
 
     printf -v SID '%X' "${VDRCHANNEL[9]}"
     printf -v TID '%X' "${VDRCHANNEL[11]}"
@@ -295,10 +282,8 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     UNIQUE_ID="${SID}_${TID}_${NID}_${NAMESPACE}"
     SERVICEREF_ID="${UNIQUE_ID}0000"
     SERVICEREF="1_0_${CHANNELTYPE}_${SERVICEREF_ID}_0_0_0"
-    IFS=';' read -r -a REPLY <<< "${VDRCHANNEL[0]}"
-    : "${REPLY[0]%,*}"           # Kanalname ohne Kurzname
-    VDR_CHANNELNAME="${_//|/:}"  # '|' durch ':' ersetzen
-    SNPNAME="${VDR_CHANNELNAME//'/'}"  # Alle '/' löschen
+    VDR_CHANNELNAME="${CHANNEL_NAME//|/:}"  # '|' durch ':' ersetzen
+    SNPNAME="${VDR_CHANNELNAME//'/'}"       # Alle '/' löschen
 
     LC_ALL='C'  # Halbiert die Zeit beim suchen im index
     for entry in "${INDEX[@]}"; do
@@ -323,9 +308,9 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     else
       SERVICE_LIST+=("${SERVICEREF}\t${VDR_CHANNELNAME}\t${SERVICEREF_ID}=${LOGO_SRP}")
     fi
-    LC_ALL="$_LC"  # Sparcheinstellungen zurückstellen
     # Variablen zurücksetzen
-    unset -v VDRCHANNEL NAMESPACE CHANNELTYPE VDR_CHANNELNAME
+    LC_ALL="$_LC"  # Sparcheinstellungen zurückstellen
+    unset -v CHANNEL_NAME VDRCHANNEL NAMESPACE CHANNELTYPE VDR_CHANNELNAME
     LOGO_SRP="$NOT_SET" ; LOGO_SNP="$NOT_SET"
     SNPNAME=''
   done  # for i in "${!VDR_CHANNELSCONF[@]}"
@@ -485,10 +470,12 @@ fi
 # Statistik anzeigen
 f_log INFO "Kanallogos (${STYLE}) wurden erstellt!"
 [[ "$nologo" -gt 0 ]] && f_log "==> Kanäle ohne Logo: ${nologo}/${cnt}"
-[[ "$difflogo" -gt 0 ]] && f_log "==> Kanäle mit unterschiedlichen Logos (Vorgabe: ${PREFERED_LOGO}): $difflogo"
-[[ "$grp" -gt 0 || "$obs" -gt 0 || "$bl" -gt 0 ]] && { f_log "==> Übersprungene Einträge:"
-  f_log "    Kanalgruppen: ${grp:-0}, 'OBSOLETE': ${obs:-0}, '.': ${bl:-0}" ;}
-f_log "==> Verwendete Logos: $((svg + png)) ($svg im SVG- und $png im PNG-Format)"
+[[ "$difflogo" -gt 0 ]] && f_log "==> Kanäle mit unterschiedlichen Logos: $difflogo (Vorgabe: ${PREFERED_LOGO})"
+[[ "$grp" -gt 0 || "$obs" -gt 0 || "$bl" -gt 0 ]] && { f_log "==> Übersprungene Einträge: Kanalgruppen: ${grp:-0}, 'OBSOLETE': ${obs:-0}, '.': ${bl:-0}" ;}
+# Anzahl von Logos im picoins.git zählen
+mapfile -t < <(ls "${BUILD_SOURCE}/logos/"*.png "${BUILD_SOURCE}/logos/"*.svg 2>/dev/null)
+: "${#MAPFILE[@]}" ; total_logos="${_:-?}"
+f_log "==> Verwendete Logos: $((svg + png))/${total_logos} ($svg im SVG- und $png im PNG-Format)"
 f_log "==> ${N_LOGO:-0} neue(s) oder aktualisierte(s) Logo(s) erstellt"
 SCRIPT_TIMING[2]=$SECONDS  # Zeit nach der Statistik
 SCRIPT_TIMING[10]=$((SCRIPT_TIMING[2] - SCRIPT_TIMING[0]))  # Gesamt
