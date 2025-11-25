@@ -66,7 +66,7 @@ f_self_update() {  # Automatisches Update
       git pull --force || exit 1
     } &>> "${LOGFILE:-/dev/null}"
     f_log INFO "Starte $SELF_NAME neu…"
-    cd - || exit 1   # Zurück ins alte Arbeitsverzeichnis
+    cd - &>> /dev/null || exit 1   # Zurück ins alte Arbeitsverzeichnis
     exec "$SELF" "$@"
     exit 1  # Alte Version des Skripts beenden
   else
@@ -462,7 +462,7 @@ done
 chown --no-dereference --recursive "${LOGO_USER:-vdr}:${LOGO_GROUP:-vdr}" "$LOGODIR" 2>> "$LOGFILE" \
   || f_log ERR "Eigentümer/Gruppe ${LOGO_USER:-vdr}:${LOGO_GROUP:-vdr} konnte nicht gesetzt werden!"
 chmod --recursive 644 "${LOGODIR}"/*.png 2>> "$LOGFILE" \
-  || f_log ERR "Berechtigungen ${LOGODIR} konnten nicht gesetzt werden!"
+  || f_log ERR "Berechtigungen für ${LOGODIR} konnten nicht gesetzt werden!"
 
 # Logo History speichern
 if [[ -n "$LOGO_HIST" ]] ; then
