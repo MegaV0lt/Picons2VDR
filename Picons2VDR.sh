@@ -237,7 +237,7 @@ mapfile -t INDEX < "${INDEX_PATH}"
 
 ### VDR Serviceliste erzeugen
 if [[ -f "$CHANNELSCONF" ]] ; then
-  _LC="${LANG:-LC_NAME}"  # Locale merken
+  _LC="${LANG:-$LC_NAME}"  # Locale merken
   read -r -a ENCODING < <(encguess -u "$CHANNELSCONF" 2>> "$LOGFILE")  # Kodierung der Kanalliste ermitteln
   f_log INFO "Kodierung der Kanalliste: ${ENCODING[1]:-unbekannt}"
   # Kanalliste in Array einlesen (UTF-8)
@@ -258,15 +258,15 @@ if [[ -f "$CHANNELSCONF" ]] ; then
       echo -ne "$msgINF Konvertiere Kanalname -> Service #${cnt}"\\r
     fi
 
-    printf -v SID '%X' "${VDRCHANNEL[9]}"
-    printf -v TID '%X' "${VDRCHANNEL[11]}"
-    printf -v NID '%X' "${VDRCHANNEL[10]}"
+    printf -v SID '%X' "${VDRCHANNEL[9]}"   # 10301 -> 283D
+    printf -v TID '%X' "${VDRCHANNEL[11]}"  # 1019  -> 3FB
+    printf -v NID '%X' "${VDRCHANNEL[10]}"  # 1     -> 1
 
     case ${VDRCHANNEL[3]} in  # S19.2E
       *'W') NAMESPACE=$(bc -l <<< "scale=0 ; 3600 - ${VDRCHANNEL[3]//[^0-9.]} * 10")
             printf -v NAMESPACE '%X' "${NAMESPACE%.*}" ;;
       *'E') NAMESPACE=$(bc -l <<< "scale=0 ; ${VDRCHANNEL[3]//[^0-9.]} * 10")  # 192.0
-            printf -v NAMESPACE '%X' "${NAMESPACE%.*}" ;;
+            printf -v NAMESPACE '%X' "${NAMESPACE%.*}" ;;  # C0
        'T') NAMESPACE='EEEE' ;;  # DVB-T
        'C') NAMESPACE='FFFF' ;;  # DVB-C
          *) f_log ERR "Unbekannter Namespace: ${VDRCHANNEL[3]} (${VDR_CHANNELSCONF[i]})" ; continue;;
@@ -279,7 +279,7 @@ if [[ -f "$CHANNELSCONF" ]] ; then
           *) f_log ERR "Unbekannter Kanaltyp: ${VDRCHANNEL[5]} (${VDR_CHANNELSCONF[i]})" ; continue;;
     esac
 
-    UNIQUE_ID="${SID}_${TID}_${NID}_${NAMESPACE}"
+    UNIQUE_ID="${SID}_${TID}_${NID}_${NAMESPACE}"  # 283D_3FB_1_C0
     SERVICEREF_ID="${UNIQUE_ID}0000"
     SERVICEREF="1_0_${CHANNELTYPE}_${SERVICEREF_ID}_0_0_0"
     VDR_CHANNELNAME="${CHANNEL_NAME//|/:}"  # '|' durch ':' ersetzen
@@ -288,7 +288,8 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     LC_ALL='C'  # Halbiert die Zeit beim suchen im index
     for entry in "${INDEX[@]}"; do
       # Check if entry contains unique ID (283D_3FB_1_C00000=daserstehd)
-      if [[ "$entry" == "${SERVICEREF_ID}="* ]] ; then
+      # if [[ "$entry" == "${SERVICEREF_ID}="* ]] ; then
+      if [[ "$entry" =~ ^"${SERVICEREF_ID}"=.* ]] ; then
         LOGO_SRP="${entry#*=}"
         [[ "$STYLE" == 'srp' ]] && break  # for entry
       fi
@@ -412,14 +413,31 @@ for logoname in "${LOGO_COLLECTION[@]}" ; do
   fi
 
   # Erstelle optimiertes Logo inklusive Hintergrund
-  convert "${BUILD_SOURCE}/backgrounds/${RESOLUTION}/${BACKGROUND}.png" \
-    \( "$logo" -background none -bordercolor none -border 100 -trim -border 1% -resize "$RESIZE" -gravity center -extent "$RESOLUTION" +repage \) \
-    -layers merge - 2>> "$LOGFILE" \
-    | "$pngquant" - 2>> "$LOGFILE" > "${LOGODIR}/.logos/${logoname}.png"
+  if [[ "$pngquant" == 'pngquant' ]] ; then
+    # pngquant mit Qualitäts-/Geschwindigkeitsoptionen, Metadaten entfernen
+    convert "${BUILD_SOURCE}/backgrounds/${RESOLUTION}/${BACKGROUND}.png" \
+      \( "$logo" -background none -bordercolor none -border 100 -trim -border 1% -resize "$RESIZE" -gravity center -extent "$RESOLUTION" +repage \) \
+      -layers merge - 2>> "$LOGFILE" \
+      | "$pngquant" --quality=60-90 --speed=3 --skip-if-larger --strip - 2>> "$LOGFILE" > "${LOGODIR}/.logos/${logoname}.png"
+  else
+    # Fallback (kein pngquant installiert): einfach durchreichen
+    convert "${BUILD_SOURCE}/backgrounds/${RESOLUTION}/${BACKGROUND}.png" \
+      \( "$logo" -background none -bordercolor none -border 100 -trim -border 1% -resize "$RESIZE" -gravity center -extent "$RESOLUTION" +repage \) \
+      -layers merge - 2>> "$LOGFILE" \
+      | "$pngquant" - 2>> "$LOGFILE" > "${LOGODIR}/.logos/${logoname}.png"
+  fi
+
+  # Prüfe Exit-Codes der Pipeline (convert | pngquant)
+  ret_convert=${PIPESTATUS[0]:-1}
+  ret_png=${PIPESTATUS[1]:-1}
+  if [[ $ret_convert -ne 0 || $ret_png -ne 0 ]] ; then
+    f_log ERR "Bildgenerierung/Optimierung fehlgeschlagen für ${logoname} (convert=${ret_convert}, pngquant=${ret_png})"
+    continue
+  fi
+
   ((N_LOGO++))
 done
 
-# [[ -t 1 ]] && echo -e '\n'
 cd "$LOGODIR" || exit 1
 
 f_log INFO 'Erstelle symbolische Links für Kanallogos…'
