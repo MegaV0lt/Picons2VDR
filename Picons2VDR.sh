@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=251125  # Version des Skripts
+VERSION=251201  # Version des Skripts
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -25,7 +25,7 @@ msgINF='\e[42m \e[0m' ; msgWRN='\e[103m \e[0m'     # " " mit grünem/gelben Hint
 PICONS_GIT='https://github.com/picons/picons.git'  # Picon-Logos
 PICONS_DIR='picons.git'                            # Ordner, wo die Picon-Kanallogos liegen (GIT)
 NOT_SET='--------'                                 # Variable nicht gesetzt
-declare -l SNPNAME STYLE  # Bei Zuweisung in Kleinbuchstaben umwandeln
+declare -l SNP_NAME STYLE  # Bei Zuweisung in Kleinbuchstaben umwandeln
 
 # Pfade festlegen
 LOCATION="${SELF_PATH}/${PICONS_DIR}"          # Pfad vom GIT
@@ -38,8 +38,8 @@ mkdir --parents "${TEMP}/cache" || { echo "Fehler beim erzeugen von ${TEMP}/cach
 f_log(){  # Logausgabe auf Konsole oder via Logger. $1 zum kennzeichnen der Meldung.
   local msg="${*:2}"
   case "${1^^}" in
-    'ERR'*|'FATAL') [[ -t 2 ]] && { echo -e "$msgERR ${msg:-$1}${nc}" >&2 ;} \
-                      || logger --tag "$SELF_NAME" --priority user.err "$@" ;;
+    'ERR'*) [[ -t 2 ]] && { echo -e "$msgERR ${msg:-$1}${nc}" >&2 ;} \
+              || logger --tag "$SELF_NAME" --priority user.err "$@" ;;
     'WARN'*) [[ -t 1 ]] && { echo -e "$msgWRN ${msg:-$1}" ;} || logger --tag "$SELF_NAME" "$@" ;;
     'DEBUG') [[ -t 1 ]] && { echo -e "\e[1m${msg:-$1}${nc}" ;} || logger --tag "$SELF_NAME" "$@" ;;
     'INFO'*) [[ -t 1 ]] && { echo -e "$msgINF ${msg:-$1}" ;} || logger --tag "$SELF_NAME" "$@" ;;
@@ -56,9 +56,9 @@ f_self_update() {  # Automatisches Update
   local branch upstream
   f_log INFO 'Starte Auto-Update…'
   cd "$SELF_PATH" || exit 1
-  git fetch
-  branch=$(git rev-parse --abbrev-ref HEAD)
-  upstream=$(git rev-parse --abbrev-ref --symbolic-full-name @{upstream})
+  git fetch &>> "${LOGFILE:-/dev/null}"
+  branch=$(git rev-parse --abbrev-ref HEAD)                                  # main
+  upstream=$(git rev-parse --abbrev-ref --symbolic-full-name "@{upstream}")  # origin/main
   if [[ -n "$(git diff --name-only "$upstream" "$SELF_NAME")" ]] ; then
     f_log INFO "Neue Version von $SELF_NAME gefunden! Starte Update…"
     { git pull --force
@@ -66,9 +66,9 @@ f_self_update() {  # Automatisches Update
       git pull --force || exit 1
     } &>> "${LOGFILE:-/dev/null}"
     f_log INFO "Starte $SELF_NAME neu…"
-    cd - &>> /dev/null || exit 1   # Zurück ins alte Arbeitsverzeichnis
+    cd - &>> /dev/null || exit 1  # Zurück ins alte Arbeitsverzeichnis
     exec "$SELF" "$@"
-    exit 1  # Alte Version des Skripts beenden
+    exit 0  # Alte Version des Skripts beenden
   else
     f_log INFO 'OK. Bereits die aktuelle Version'
   fi
@@ -112,7 +112,7 @@ f_create_symlinks() {  # Daten für Symlinks erzeugen und Logos in Array sammeln
       ((difflogo++))
     fi
 
-    LOGO_NAMES+=("${servicename//:/|}.png")  # ':' durch '|' ersetzen (VDR Logo-Name)
+    LOGO_NAMES+=("${servicename}.png")  # VDR Logo-Name
     if [[ -n "$logo_srp" ]] ; then
       LOGO_PATHS+=(".logos/${logo_srp}.png")
       LOGO_COLLECTION+=("$logo_srp")
@@ -177,7 +177,7 @@ fi
 f_log INFO "   Logo-Index: ${STYLE}"
 
 # Benötigte Programme suchen
-COMMANDS=(bc find git iconv ln mkdir mv printf rm sort)
+COMMANDS=(bc find git iconv ln mv printf rm sort)
 for cmd in "${COMMANDS[@]}" ; do
   type "$cmd" &>/dev/null || MISSING_COMMANDS+=("$cmd")
 done
@@ -239,7 +239,7 @@ mapfile -t INDEX < "${INDEX_PATH}"
 if [[ -f "$CHANNELSCONF" ]] ; then
   _LC="${LANG:-$LC_NAME}"  # Locale merken
   read -r -a ENCODING < <(encguess -u "$CHANNELSCONF" 2>> "$LOGFILE")  # Kodierung der Kanalliste ermitteln
-  f_log INFO "Kodierung der Kanalliste: ${ENCODING[1]:-unbekannt}"
+  f_log INFO "Kodierung der Kanalliste: ${ENCODING[1]:-Unbekannt}"
   # Kanalliste in Array einlesen (UTF-8)
   mapfile -t VDR_CHANNELSCONF < <(iconv -f "${ENCODING[1]:-UTF-8}" -t UTF-8 -c < "$CHANNELSCONF" 2>> "$LOGFILE")
   f_log INFO "Erzeuge VDR Serviceliste (${STYLE})…"
@@ -283,7 +283,7 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     SERVICEREF_ID="${UNIQUE_ID}0000"
     SERVICEREF="1_0_${CHANNELTYPE}_${SERVICEREF_ID}_0_0_0"
     VDR_CHANNELNAME="${CHANNEL_NAME//|/:}"  # '|' durch ':' ersetzen
-    SNPNAME="${VDR_CHANNELNAME//'/'}"       # Alle '/' löschen
+    SNP_NAME="${VDR_CHANNELNAME//'/'}"       # Alle '/' löschen
 
     LC_ALL='C'  # Halbiert die Zeit beim suchen im index
     for entry in "${INDEX[@]}"; do
@@ -295,30 +295,28 @@ if [[ -f "$CHANNELSCONF" ]] ; then
       fi
 
       # Check if entry contains name of the channel
-      if [[ "$STYLE" == 'utf8snp' && -n "$SNPNAME" ]] ; then
-        if [[ "${entry}" == "${SNPNAME}="* ]] ; then
-          LOGO_SNP="${entry#*=}"
-          break  # for entry
-        fi
+      if [[ "$STYLE" == 'utf8snp' && "${entry}" == "${SNP_NAME}="* ]] ; then
+        LOGO_SNP="${entry#*=}"
+        break  # for entry
       fi
     done
+    LC_ALL="$_LC"  # Sparcheinstellungen zurückstellen
 
     # Zur Serviceliste hinzufügen
     if [[ "$STYLE" == 'utf8snp' ]] ; then
-      SERVICE_LIST+=("${SERVICEREF}\t${VDR_CHANNELNAME}\t${SERVICEREF_ID}=${LOGO_SRP}\t${SNPNAME}=${LOGO_SNP}")
+      SERVICE_LIST+=("${SERVICEREF}\t${VDR_CHANNELNAME}\t${SERVICEREF_ID}=${LOGO_SRP}\t${SNP_NAME}=${LOGO_SNP}")
     else
       SERVICE_LIST+=("${SERVICEREF}\t${VDR_CHANNELNAME}\t${SERVICEREF_ID}=${LOGO_SRP}")
     fi
     # Variablen zurücksetzen
-    LC_ALL="$_LC"  # Sparcheinstellungen zurückstellen
     unset -v CHANNEL_NAME VDRCHANNEL NAMESPACE CHANNELTYPE VDR_CHANNELNAME
     LOGO_SRP="$NOT_SET" ; LOGO_SNP="$NOT_SET"
-    SNPNAME=''
+    SNP_NAME=''
   done  # for i in "${!VDR_CHANNELSCONF[@]}"
 
   SERVICE_FILE="${BUILD_OUTPUT}/servicelist-vdr-${STYLE}.txt"
   #sort -t $'\t' -k 2,2 "$TEMPFILE" | sed -e 's/\t/^|/g' | column -t -s $'^' | sed -e 's/|/  |  /g' > "$SERVICE_FILE"
-  sort --field-separator=$'\t' --key=2,2 <(printf '%b\n' "${SERVICE_LIST[@]}") > "$SERVICE_FILE"
+  sort --field-separator=$'\t' --key=2,2 <(printf '%b\n' "${SERVICE_LIST[@]}") 2>> "$LOGFILE" > "$SERVICE_FILE"
   f_log INFO "Serviceliste exportiert nach $SERVICE_FILE"
 else
   f_log ERR "$CHANNELSCONF nicht gefunden!"
@@ -412,6 +410,7 @@ for logoname in "${LOGO_COLLECTION[@]}" ; do
     [[ "${LOGODIR}/.logos/${logoname}.png" -nt "$logo" ]] && continue  # Nur erstellen wenn neuer
   fi
 
+  # TODO: Add reflection (https://legacy.imagemagick.org/Usage/advanced/#reflections)
   # Erstelle optimiertes Logo inklusive Hintergrund
   if [[ "$pngquant" == 'pngquant' ]] ; then
     # pngquant mit Qualitäts-/Geschwindigkeitsoptionen, Metadaten entfernen
@@ -491,7 +490,7 @@ f_log INFO "Kanallogos (${STYLE}) wurden erstellt!"
 [[ "$difflogo" -gt 0 ]] && f_log "==> Kanäle mit unterschiedlichen Logos: $difflogo (Vorgabe: ${PREFERED_LOGO})"
 [[ "$grp" -gt 0 || "$obs" -gt 0 || "$bl" -gt 0 ]] && { f_log "==> Übersprungene Einträge: Kanalgruppen: ${grp:-0}, 'OBSOLETE': ${obs:-0}, '.': ${bl:-0}" ;}
 # Anzahl von Logos im picoins.git zählen
-mapfile -t < <(ls "${BUILD_SOURCE}/logos/"*.png "${BUILD_SOURCE}/logos/"*.svg 2>/dev/null)
+mapfile -t < <(ls -1 "${BUILD_SOURCE}/logos/"*.png "${BUILD_SOURCE}/logos/"*.svg 2>/dev/null)
 : "${#MAPFILE[@]}" ; total_logos="${_:-?}"
 f_log "==> Verwendete Logos: $((svg + png))/${total_logos} ($svg im SVG- und $png im PNG-Format)"
 f_log "==> ${N_LOGO:-0} neue(s) oder aktualisierte(s) Logo(s) erstellt"
