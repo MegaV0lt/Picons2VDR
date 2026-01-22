@@ -249,12 +249,12 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     IFS=':' read -r -a VDRCHANNEL <<< "${VDR_CHANNELSCONF[i]}"
     [[ -z "${VDRCHANNEL[0]}" ]] && { ((grp++)) ; continue ;}        # Kanalgruppe
     : "${VDRCHANNEL[0]%;*}"  # Kanalname ohne Provider
-    CHANNEL_NAME="${_%,*}"   # Kanalname ohne Kurzname. Nur das letzte , entfernen (NDR 90,3,;ARD NDR)
+    CHANNEL_NAME="${_%,*}"   # Kanalname ohne Kurzname. Nur das letzte ',' entfernen (NDR 90,3,;ARD NDR)
     [[ "$CHANNEL_NAME" =~ OBSOLETE ]] && { ((obs++)) ; continue ;}  # Als 'OBSOLETE' markierter Kanal
     [[ "$CHANNEL_NAME" == '.' ]] && { ((bl++)) ; continue ;}        # '.' als Kanalname
 
     ((cnt++))  # Zähler für verarbeitete Kanäle
-    if [[ -t 1 ]] && ((cnt % 5 == 0)) ; then
+    if [[ -t 1 ]] && ((cnt % 5 == 0)) ; then  # Anzeige im Terminal (Jeder 5. Kanal)
       echo -ne "$msgINF Konvertiere Kanalname -> Service #${cnt}"\\r
     fi
 
@@ -282,8 +282,12 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     UNIQUE_ID="${SID}_${TID}_${NID}_${NAMESPACE}"  # 283D_3FB_1_C0
     SERVICEREF_ID="${UNIQUE_ID}0000"
     SERVICEREF="1_0_${CHANNELTYPE}_${SERVICEREF_ID}_0_0_0"
-    VDR_CHANNELNAME="${CHANNEL_NAME//|/:}"  # '|' durch ':' ersetzen
-    SNP_NAME="${VDR_CHANNELNAME//'/'}"       # Alle '/' löschen
+    # Folgende Zeichen sind nicht erlaubt: = < > : " / \ | ? *
+    SNP_NAME="${CHANNEL_NAME//[=<>:\"\/\\|?*]/}"  # Unerlaubte Zeichen löschen
+    # Punkt am Ende der Namenstruktur ist ebenfalls nicht erlaubt.
+    while [[ "$SNP_NAME" =~ [.]$ ]] ; do
+      SNP_NAME="${SNP_NAME%.}"  # Punkt am Ende löschen
+    done
 
     LC_ALL='C'  # Halbiert die Zeit beim suchen im index
     for entry in "${INDEX[@]}"; do
@@ -303,6 +307,7 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     LC_ALL="$_LC"  # Sparcheinstellungen zurückstellen
 
     # Zur Serviceliste hinzufügen
+    VDR_CHANNELNAME="${CHANNEL_NAME//|/:}"  # '|' durch ':' ersetzen
     if [[ "$STYLE" == 'utf8snp' ]] ; then
       SERVICE_LIST+=("${SERVICEREF}\t${VDR_CHANNELNAME}\t${SERVICEREF_ID}=${LOGO_SRP}\t${SNP_NAME}=${LOGO_SNP}")
     else
@@ -429,9 +434,12 @@ for logoname in "${LOGO_COLLECTION[@]}" ; do
   # Prüfe Exit-Codes der Pipeline (convert | pngquant)
   ret_convert=${PIPESTATUS[0]:-1}
   ret_png=${PIPESTATUS[1]:-1}
-  if [[ $ret_convert -ne 0 || $ret_png -ne 0 ]] ; then
-    f_log ERR "Bildgenerierung/Optimierung fehlgeschlagen für ${logoname} (convert=${ret_convert}, pngquant=${ret_png})"
+  if [[ $ret_convert -ne 0 ]] ; then
+    f_log ERR "Bildgenerierung fehlgeschlagen für ${logoname}"
     continue
+  fi
+  if [[ $ret_png -ne 0 ]] ; then
+    f_log WARN "Bildoptimierung fehlgeschlagen für ${logoname}"
   fi
 
   ((N_LOGO++))
