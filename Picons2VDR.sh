@@ -11,7 +11,7 @@
 # Die Logos werden im PNG-Format erstellt. Die Größe und den optionalen Hintergrund
 # kann man in der *.conf einstellen.
 # Das Skript am besten ein mal pro Woche ausführen (/etc/cron.weekly)
-VERSION=260122  # Version des Skripts
+VERSION=260126  # Version des Skripts
 
 # Sämtliche Einstellungen werden in der *.conf vorgenommen.
 # ---> Bitte ab hier nichts mehr ändern! <---
@@ -282,8 +282,8 @@ if [[ -f "$CHANNELSCONF" ]] ; then
     UNIQUE_ID="${SID}_${TID}_${NID}_${NAMESPACE}"  # 283D_3FB_1_C0
     SERVICEREF_ID="${UNIQUE_ID}0000"
     SERVICEREF="1_0_${CHANNELTYPE}_${SERVICEREF_ID}_0_0_0"
-    # Folgende Zeichen sind nicht erlaubt: = < > : " / \ | ? *
-    SNP_NAME="${CHANNEL_NAME//[=<>:\"\/\\|?*]/}"  # Unerlaubte Zeichen löschen
+    # Folgende Zeichen sind nicht erlaubt: < > : " / \ | ? *
+    SNP_NAME="${CHANNEL_NAME//[<>:\"\/\\|?*]/}"  # Unerlaubte Zeichen löschen
     # Punkt am Ende der Namenstruktur ist ebenfalls nicht erlaubt.
     while [[ "$SNP_NAME" =~ [.]$ ]] ; do
       SNP_NAME="${SNP_NAME%.}"  # Punkt am Ende löschen
